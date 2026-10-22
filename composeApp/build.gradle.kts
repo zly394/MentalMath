@@ -124,17 +124,20 @@ tasks.matching { it.name.startsWith("compile") && it.name.endsWith("ExecutableKo
             val refMatch = refPropRegex.find(content)
             if (refMatch != null) {
                 val refProp = refMatch.groupValues[1]
+                // 修补 AtomicReference.getValue
                 content = content.replace(
-                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{\\s*// Inline function 'kotlinx\\.atomicfu\\.atomicfu_getValue' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*return tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
+                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{[\\s\\S]*?return\\s+tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
                     "protoOf(AtomicReference).$1 = function () { return this.$refProp; };"
                 )
+                // 修补 AtomicReference.getAndSet
                 content = content.replace(
-                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_getAndSet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*var oldValue = tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*value;\\s*return oldValue;"),
-                    "var oldValue = this.$refProp; this.$refProp = value; return oldValue;"
+                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(value\\)\\s*\\{[\\s\\S]*?var oldValue\\s*=[\\s\\S]*?return oldValue;\\s*\\};"),
+                    "protoOf(AtomicReference).$1 = function (value) { var oldValue = this.$refProp; this.$refProp = value; return oldValue; };"
                 )
+                // 修补 AtomicReference.compareAndSet
                 content = content.replace(
-                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_compareAndSet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*if\\s*\\(equals\\(tmp" + "\\" + d + "ret" + "\\" + d + "1,\\s*expect\\)\\)\\s*\\{\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*newValue;"),
-                    "if (equals(this.$refProp, expect)) { this.$refProp = newValue;"
+                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(expect,\\s*newValue\\)\\s*\\{[\\s\\S]*?\\n\\s*\\};"),
+                    "protoOf(AtomicReference).$1 = function (expect, newValue) { if (equals(this.$refProp, expect)) { this.$refProp = newValue; return true; } return false; };"
                 )
             }
 
@@ -143,22 +146,25 @@ tasks.matching { it.name.startsWith("compile") && it.name.endsWith("ExecutableKo
             val intMatch = intPropRegex.find(content)
             if (intMatch != null) {
                 val intProp = intMatch.groupValues[1]
+                // 修补 AtomicInt.getValue
                 content = content.replace(
-                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{\\s*// Inline function 'kotlinx\\.atomicfu\\.atomicfu_getValue' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*return tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
+                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{[\\s\\S]*?return\\s+tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
                     "protoOf(AtomicInt).$1 = function () { return this.$intProp; };"
                 )
+                // 修补 AtomicInt.addAndGet
                 content = content.replace(
-                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_addAndGet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*tmp" + "\\" + d + "ret" + "\\" + d + "1\\s*\\+\\s*amount\\s*\\|\\s*0;\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "3;\\s*return tmp" + "\\" + d + "ret" + "\\" + d + "3;"),
-                    "this.$intProp = this.$intProp + amount | 0; return this.$intProp;"
+                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(amount\\)\\s*\\{[\\s\\S]*?return\\s+tmp" + "\\" + d + "ret" + "\\" + d + "3;\\s*\\};"),
+                    "protoOf(AtomicInt).$1 = function (amount) { this.$intProp = this.$intProp + amount | 0; return this.$intProp; };"
                 )
+                // 修补 AtomicInt.compareAndSet
                 content = content.replace(
-                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_compareAndSet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*if\\s*\\(equals\\(tmp" + "\\" + d + "ret" + "\\" + d + "1,\\s*expect\\)\\)\\s*\\{\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*newValue;"),
-                    "if (equals(this.$intProp, expect)) { this.$intProp = newValue;"
+                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(expect,\\s*newValue\\)\\s*\\{[\\s\\S]*?\\n\\s*\\};"),
+                    "protoOf(AtomicInt).$1 = function (expect, newValue) { if (equals(this.$intProp, expect)) { this.$intProp = newValue; return true; } return false; };"
                 )
             }
 
             runtimeJs.writeText(content, Charsets.UTF_8)
-            println(">>> [MentalMath Patch] Successfully pre-patched runtime.js (refProp=$refMatch, intProp=$intMatch)")
+            println(">>> [MentalMath Patch] Successfully pre-patched runtime.js (refProp=${refMatch?.groupValues?.get(1)}, intProp=${intMatch?.groupValues?.get(1)})")
         }
     }
 }
