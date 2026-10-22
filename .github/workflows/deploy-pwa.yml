@@ -10,6 +10,11 @@ permissions:
   pages: write
   id-token: write
 
+# 避免多并发推送导致 Pages 部署死锁排队（官方标准配置）
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build-pwa:
     runs-on: ubuntu-latest
@@ -45,6 +50,14 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: composeApp/build/dist/js/productionExecutable/
+
+      # 双保险：同时发布到 gh-pages 分支（如果 Actions 方式受环境审批限制，可直接切该分支秒级生效）
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: composeApp/build/dist/js/productionExecutable/
+          force_orphan: true
 
   deploy-pages:
     environment:
