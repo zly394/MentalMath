@@ -21,6 +21,18 @@ kotlin {
         }
     }
 
+    js(IR) {
+        browser {
+            commonWebpackConfig {
+                outputFileName = "mentalmath.js"
+            }
+            testTask {
+                enabled = false
+            }
+        }
+        binaries.executable()
+    }
+
     listOf(
         iosX64(),
         iosArm64(),
@@ -48,6 +60,9 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
         }
+        val jsMain by getting {
+            resources.srcDir("src/androidMain/assets/tts")
+        }
     }
 }
 
@@ -63,7 +78,7 @@ android {
         versionName = "1.0.0"
     }
     androidResources {
-        noCompress += listOf("pcm", "mdl", "fst", "int", "conf", "dubm", "ie", "mat", "stats", "uuid")
+        noCompress += listOf("pcm", "pak", "mdl", "fst", "int", "conf", "dubm", "ie", "mat", "stats", "uuid")
     }
     packaging {
         resources {
@@ -83,4 +98,15 @@ android {
 
 dependencies {
     debugImplementation(compose.uiTooling)
+}
+
+tasks.matching { it.name == "jsTestPackageJson" }.configureEach {
+    doLast {
+        val pkgFile = rootProject.layout.buildDirectory
+            .file("js/packages/${rootProject.name}-composeApp-test/package.json")
+            .get().asFile
+        if (pkgFile.exists()) {
+            pkgFile.writeText(pkgFile.readText().replace("github:Kotlin/karma#6.4.5", "6.4.4"))
+        }
+    }
 }

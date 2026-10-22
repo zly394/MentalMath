@@ -1,0 +1,25 @@
+{
+  "name": "口算特训 - 一年级10以内极速心算",
+  "short_name": "口算特训",
+  "description": "一年级10以内加减法极速条件反射特训（支持晓晓真人女声离线播报与语音抢答）",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1D4ED8",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

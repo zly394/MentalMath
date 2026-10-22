@@ -1,6 +1,7 @@
 # Gradle & Kotlin Multiplatform
 .gradle/
 .kotlin/
+kotlin-js-store/
 build/
 */build/
 **/build/
