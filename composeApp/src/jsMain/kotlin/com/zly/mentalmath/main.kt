@@ -25,8 +25,9 @@ import androidx.compose.ui.window.ComposeViewport
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.await
+import kotlinx.coroutines.withTimeoutOrNull
 import org.khronos.webgl.ArrayBuffer
-import org.khronos.webgl.DataView
+import org.khronos.webgl.Int8Array
 import org.jetbrains.skiko.wasm.onWasmReady
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -35,39 +36,45 @@ fun main() {
         val body = document.body ?: return@onWasmReady
         ComposeViewport(body) {
             var cnFontFamily by remember { mutableStateOf<FontFamily?>(null) }
+            var isReady by remember { mutableStateOf(false) }
             val fontFamilyResolver = LocalFontFamilyResolver.current
 
             LaunchedEffect(Unit) {
-                try {
-                    val response = window.fetch("app_cn.ttf").await()
-                    if (response.ok) {
-                        val buffer: ArrayBuffer = response.arrayBuffer().await()
-                        val view = DataView(buffer)
-                        val bytes = ByteArray(buffer.byteLength) { idx -> view.getInt8(idx) }
-                        val family = FontFamily(
-                            Font(identity = "MentalMathCNRegular", data = bytes, weight = FontWeight.Normal),
-                            Font(identity = "MentalMathCNMedium", data = bytes, weight = FontWeight.Medium),
-                            Font(identity = "MentalMathCNSemiBold", data = bytes, weight = FontWeight.SemiBold),
-                            Font(identity = "MentalMathCNBold", data = bytes, weight = FontWeight.Bold),
-                            Font(identity = "MentalMathCNExtraBold", data = bytes, weight = FontWeight.ExtraBold)
-                        )
-                        fontFamilyResolver.preload(family)
-                        cnFontFamily = family
+                withTimeoutOrNull(2000L) {
+                    try {
+                        val response = window.fetch("app_cn.ttf").await()
+                        if (response.ok) {
+                            val buffer: ArrayBuffer = response.arrayBuffer().await()
+                            val bytes = Int8Array(buffer).unsafeCast<ByteArray>()
+                            val family = FontFamily(
+                                Font(identity = "MentalMathCNRegular", data = bytes, weight = FontWeight.Normal),
+                                Font(identity = "MentalMathCNMedium", data = bytes, weight = FontWeight.Medium),
+                                Font(identity = "MentalMathCNSemiBold", data = bytes, weight = FontWeight.SemiBold),
+                                Font(identity = "MentalMathCNBold", data = bytes, weight = FontWeight.Bold),
+                                Font(identity = "MentalMathCNExtraBold", data = bytes, weight = FontWeight.ExtraBold)
+                            )
+                            fontFamilyResolver.preload(family)
+                            cnFontFamily = family
+                        }
+                    } catch (e: Throwable) {
+                        console.error("Failed to load app_cn.ttf:", e)
                     }
-                } catch (e: Throwable) {
-                    console.error("Failed to load app_cn.ttf:", e)
                 }
+                isReady = true
             }
 
-            val family = cnFontFamily
-            if (family != null) {
-                CompositionLocalProvider(
-                    LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = family)
-                ) {
-                    App(customFontFamily = family)
+            if (isReady) {
+                val family = cnFontFamily
+                if (family != null) {
+                    CompositionLocalProvider(
+                        LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = family)
+                    ) {
+                        App(customFontFamily = family)
+                    }
+                } else {
+                    App(customFontFamily = null)
                 }
             } else {
-                // 优雅过渡：字体就绪前展示极简加载状态，杜绝任何中文字符豆腐块（方框）闪现
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
