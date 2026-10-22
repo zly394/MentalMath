@@ -112,25 +112,53 @@ tasks.matching { it.name == "jsTestPackageJson" }.configureEach {
 }
 
 // 自动化修补 Kotlin 2.x JS 编译器对 Compose Runtime 内部 AtomicReference/AtomicInt 的 Lowering 缺陷
-tasks.matching { it.name.startsWith("jsBrowser") }.configureEach {
+tasks.matching { it.name.startsWith("compile") && it.name.endsWith("ExecutableKotlinJs") }.configureEach {
     doLast {
         val buildDir = project.layout.buildDirectory.get().asFile
-        buildDir.walkTopDown().filter { it.name == "mentalmath.js" }.forEach { jsFile ->
-            var content = jsFile.readText(Charsets.UTF_8)
-            var modified = false
-            if (content.contains("on(Gd).cy=function(){}")) {
-                content = content.replace("on(Gd).cy=function(){}", "on(Gd).cy=function(){return this.n24_1}")
-                content = content.replace("on(Vd).cy=function(){}", "on(Vd).cy=function(){return this.p1m_1}")
-                content = content.replace("jn(void 0,t)?(this.n24_1=n,i=!0)", "jn(this.n24_1,t)?(this.n24_1=n,i=!0)")
-                content = content.replace("jn(void 0,t)?(this.p1m_1=n,i=!0)", "jn(this.p1m_1,t)?(this.p1m_1=n,i=!0)")
-                content = content.replace("on(Gd).o24=function(t){this.n24_1=t}", "on(Gd).o24=function(t){var o=this.n24_1;this.n24_1=t;return o}")
-                content = content.replace("this.p1m_1=void 0+t|0", "this.p1m_1=this.p1m_1+t|0")
-                modified = true
+        buildDir.walkTopDown().filter { it.name == "compose-multiplatform-core-compose-runtime-runtime.js" }.forEach { runtimeJs ->
+            var content = runtimeJs.readText(Charsets.UTF_8)
+            val d = "$"
+            
+            // 1. 动态提取 AtomicReference 属性名 (例如 this.r25_1 = value)
+            val refPropRegex = Regex("function AtomicReference\\(value\\)\\s*\\{\\s*this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;")
+            val refMatch = refPropRegex.find(content)
+            if (refMatch != null) {
+                val refProp = refMatch.groupValues[1]
+                content = content.replace(
+                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{\\s*// Inline function 'kotlinx\\.atomicfu\\.atomicfu_getValue' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*return tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
+                    "protoOf(AtomicReference).$1 = function () { return this.$refProp; };"
+                )
+                content = content.replace(
+                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_getAndSet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*var oldValue = tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*value;\\s*return oldValue;"),
+                    "var oldValue = this.$refProp; this.$refProp = value; return oldValue;"
+                )
+                content = content.replace(
+                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_compareAndSet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*if\\s*\\(equals\\(tmp" + "\\" + d + "ret" + "\\" + d + "1,\\s*expect\\)\\)\\s*\\{\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*newValue;"),
+                    "if (equals(this.$refProp, expect)) { this.$refProp = newValue;"
+                )
             }
-            if (modified) {
-                jsFile.writeText(content, Charsets.UTF_8)
-                println(">>> [MentalMath Patch] Successfully auto-patched AtomicFU in ${jsFile.relativeTo(projectDir)}")
+
+            // 2. 动态提取 AtomicInt 属性名 (例如 this.t1n_1 = value)
+            val intPropRegex = Regex("function AtomicInt\\(value\\)\\s*\\{\\s*this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;")
+            val intMatch = intPropRegex.find(content)
+            if (intMatch != null) {
+                val intProp = intMatch.groupValues[1]
+                content = content.replace(
+                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{\\s*// Inline function 'kotlinx\\.atomicfu\\.atomicfu_getValue' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*return tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
+                    "protoOf(AtomicInt).$1 = function () { return this.$intProp; };"
+                )
+                content = content.replace(
+                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_addAndGet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*tmp" + "\\" + d + "ret" + "\\" + d + "1\\s*\\+\\s*amount\\s*\\|\\s*0;\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "3;\\s*return tmp" + "\\" + d + "ret" + "\\" + d + "3;"),
+                    "this.$intProp = this.$intProp + amount | 0; return this.$intProp;"
+                )
+                content = content.replace(
+                    Regex("// Inline function 'kotlinx\\.atomicfu\\.atomicfu_compareAndSet' call\\s*var tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*if\\s*\\(equals\\(tmp" + "\\" + d + "ret" + "\\" + d + "1,\\s*expect\\)\\)\\s*\\{\\s*this\\.[a-zA-Z0-9_" + d + "]+\\s*=\\s*newValue;"),
+                    "if (equals(this.$intProp, expect)) { this.$intProp = newValue;"
+                )
             }
+
+            runtimeJs.writeText(content, Charsets.UTF_8)
+            println(">>> [MentalMath Patch] Successfully pre-patched runtime.js (refProp=$refMatch, intProp=$intMatch)")
         }
     }
 }
