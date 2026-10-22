@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1D4ED8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="口算特训">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>口算特训</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #F8FAFC;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+    </style>
+    <script src="speech.js"></script>
+</head>
+<body>
+    <div id="boot-status" role="status" style="position:fixed;inset:0;display:grid;place-content:center;padding:24px;font-family:sans-serif;z-index:1000;background:#F8FAFC">
+        正在加载口算特训……
+    </div>
+    <script>
+        function showStartupError(error) {
+            console.error('Application startup failed:', error);
+            let status = document.getElementById('boot-status');
+            if (!status) {
+                status = document.createElement('div');
+                status.id = 'boot-status';
+                status.style.cssText = 'position:fixed;inset:0;display:grid;place-content:center;padding:24px;font-family:sans-serif;z-index:1000;background:#F8FAFC';
+                document.body.appendChild(status);
+            }
+            status.setAttribute('role', 'alert');
+            status.textContent = '启动失败，请使用新版浏览器，并确认完整部署了所有 JS/WASM 文件。错误：' +
+                (error && error.message ? error.message : String(error));
+        }
+        window.addEventListener('error', event => showStartupError(event.error || event.message));
+        window.addEventListener('unhandledrejection', event => showStartupError(event.reason));
+        if (window.isSecureContext && 'serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('./sw.js').catch(function (error) {
+                    console.error('Service Worker registration failed:', error);
+                });
+            });
+        }
+    </script>
+    <script src="mentalmath.js" onerror="showStartupError(new Error('mentalmath.js 加载失败'))"></script>
+</body>
+</html>

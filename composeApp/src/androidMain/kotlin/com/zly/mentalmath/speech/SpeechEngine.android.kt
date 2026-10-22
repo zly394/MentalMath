@@ -11,7 +11,6 @@ import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import androidx.core.content.ContextCompat
 import com.zly.mentalmath.domain.NumberVoiceParser
 import java.io.BufferedInputStream
 import java.io.DataInputStream
@@ -182,8 +181,7 @@ actual class SpeechEngine actual constructor() {
 
     actual fun hasRecordPermission(): Boolean {
         val ctx = appContext ?: return false
-        return ContextCompat.checkSelfPermission(
-            ctx,
+        return ctx.checkSelfPermission(
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
     }
