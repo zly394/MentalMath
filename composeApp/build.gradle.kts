@@ -110,3 +110,27 @@ tasks.matching { it.name == "jsTestPackageJson" }.configureEach {
         }
     }
 }
+
+// 自动化修补 Kotlin 2.x JS 编译器对 Compose Runtime 内部 AtomicReference/AtomicInt 的 Lowering 缺陷
+tasks.matching { it.name.startsWith("jsBrowser") }.configureEach {
+    doLast {
+        val buildDir = project.layout.buildDirectory.get().asFile
+        buildDir.walkTopDown().filter { it.name == "mentalmath.js" }.forEach { jsFile ->
+            var content = jsFile.readText(Charsets.UTF_8)
+            var modified = false
+            if (content.contains("on(Gd).cy=function(){}")) {
+                content = content.replace("on(Gd).cy=function(){}", "on(Gd).cy=function(){return this.n24_1}")
+                content = content.replace("on(Vd).cy=function(){}", "on(Vd).cy=function(){return this.p1m_1}")
+                content = content.replace("jn(void 0,t)?(this.n24_1=n,i=!0)", "jn(this.n24_1,t)?(this.n24_1=n,i=!0)")
+                content = content.replace("jn(void 0,t)?(this.p1m_1=n,i=!0)", "jn(this.p1m_1,t)?(this.p1m_1=n,i=!0)")
+                content = content.replace("on(Gd).o24=function(t){this.n24_1=t}", "on(Gd).o24=function(t){var o=this.n24_1;this.n24_1=t;return o}")
+                content = content.replace("this.p1m_1=void 0+t|0", "this.p1m_1=this.p1m_1+t|0")
+                modified = true
+            }
+            if (modified) {
+                jsFile.writeText(content, Charsets.UTF_8)
+                println(">>> [MentalMath Patch] Successfully auto-patched AtomicFU in ${jsFile.relativeTo(projectDir)}")
+            }
+        }
+    }
+}
