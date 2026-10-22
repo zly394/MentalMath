@@ -264,7 +264,7 @@ actual class SpeechEngine actual constructor() {
         audioEngine.startAndReturnError(null)
 
         recognitionTask = recognizer.recognitionTaskWithRequest(request) { result, error ->
-            if (hasDeliveredRecognition || listenToken != myListenToken) return@recognitionTask
+            if (hasDeliveredRecognition || listenToken != myListenToken) return@recognitionTaskWithRequest
             if (result != null) {
                 val rawString = result.bestTranscription.formattedString
                 if (rawString.isNotBlank()) {
@@ -280,7 +280,7 @@ actual class SpeechEngine actual constructor() {
                         hasDeliveredRecognition = true
                         stopListeningInternal()
                         onRecognizedNumber(parsed, rawString)
-                        return@recognitionTask
+                        return@recognitionTaskWithRequest
                     }
                 }
                 if (result.isFinal() && !hasDeliveredRecognition) {
