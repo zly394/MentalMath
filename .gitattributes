@@ -1,0 +1,12 @@
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.pak binary
+*.mdl binary
+*.fst binary
+*.ie binary
+*.dubm binary
+*.mat binary
+*.jar binary
+*.png binary

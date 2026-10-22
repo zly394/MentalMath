@@ -1,0 +1,411 @@
+package com.zly.mentalmath.ui
+
+import com.zly.mentalmath.data.MathRepository
+import com.zly.mentalmath.data.PlatformStorage
+import com.zly.mentalmath.domain.QuestionGenerator
+import com.zly.mentalmath.model.AnswerOutcome
+import com.zly.mentalmath.model.AttemptRecord
+import com.zly.mentalmath.model.InputMode
+import com.zly.mentalmath.model.PracticeConfig
+import com.zly.mentalmath.model.Question
+import com.zly.mentalmath.model.QuestionMode
+import com.zly.mentalmath.model.TimeLimitOption
+import com.zly.mentalmath.speech.SpeechEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/**
+ * 单题所处阶段
+ */
+enum class QuestionPhase {
+    SPEAKING,         // 正在语音播报题目（纯算式，不带“等于”）
+    COUNTDOWN,        // 正在限时抢答读秒
+    SPEECH_DETECTED,  // 已检测到孩子开口，锁表等待系统语音识别文本返回
+    FEEDBACK,         // 单题正误/超时视觉反馈展示
+    SESSION_SUMMARY   // 本轮全部完成，展示结算成绩单
+}
+
+/**
+ * 训练页 UI 状态
+ */
+data class PracticeUiState(
+    val config: PracticeConfig = PracticeConfig(),
+    val isPracticing: Boolean = false,
+    val currentIndex: Int = 0,
+    val currentQuestion: Question? = null,
+    val phase: QuestionPhase = QuestionPhase.SPEAKING,
+    val remainingMs: Long = 2000L,
+    val lockedElapsedMs: Long? = null,
+    val comboCount: Int = 0,
+    val maxCombo: Int = 0,
+    val lastAttempt: AttemptRecord? = null,
+    val voiceHint: String = "",
+    val roundAttempts: List<AttemptRecord> = emptyList()
+) {
+    val timeProgress: Float
+        get() = if (config.timeLimit.millis <= 0L) {
+            0f
+        } else {
+            (remainingMs.toFloat() / config.timeLimit.millis.toFloat()).coerceIn(0f, 1f)
+        }
+}
+
+/**
+ * 极速口算训练核心状态机
+ */
+class PracticeViewModel(
+    val repository: MathRepository,
+    private val speechEngine: SpeechEngine
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var timerJob: Job? = null
+    private var questionStartTimeMs: Long = 0L
+    private var currentQuestionSettled: Boolean = false
+    private var activeQuestionToken: Long = 0L
+
+    private val _uiState = MutableStateFlow(PracticeUiState())
+    val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
+
+    fun updateQuestionMode(mode: QuestionMode) {
+        _uiState.update { it.copy(config = it.config.copy(questionMode = mode)) }
+    }
+
+    fun updateTimeLimit(limit: TimeLimitOption) {
+        _uiState.update {
+            it.copy(
+                config = it.config.copy(timeLimit = limit),
+                remainingMs = limit.millis
+            )
+        }
+    }
+
+    fun updateInputMode(mode: InputMode) {
+        val prev = _uiState.value.config.inputMode
+        if (prev == mode) return
+
+        if (mode == InputMode.VOICE && !speechEngine.hasRecordPermission()) {
+            speechEngine.requestRecordPermission { granted ->
+                val targetMode = if (granted) InputMode.VOICE else InputMode.KEYPAD
+                applyInputModeSwitch(targetMode, if (!granted) "未授予麦克风权限，已保持按键模式" else "")
+            }
+        } else {
+            applyInputModeSwitch(mode, "")
+        }
+    }
+
+    private fun applyInputModeSwitch(mode: InputMode, hint: String) {
+        _uiState.update {
+            it.copy(
+                config = it.config.copy(inputMode = mode),
+                voiceHint = hint
+            )
+        }
+        val state = _uiState.value
+        if (state.isPracticing && state.phase == QuestionPhase.COUNTDOWN) {
+            val q = state.currentQuestion ?: return
+            if (mode == InputMode.VOICE) {
+                startVoiceListeningForQuestion(q, activeQuestionToken)
+            } else {
+                speechEngine.stopAll()
+            }
+        }
+    }
+
+    /**
+     * 开始新一轮训练
+     */
+    fun startSession(overrideMode: QuestionMode? = null) {
+        val currentConfig = _uiState.value.config
+        val finalConfig = if (overrideMode != null) {
+            currentConfig.copy(questionMode = overrideMode)
+        } else {
+            currentConfig
+        }
+
+        if (finalConfig.inputMode == InputMode.VOICE && !speechEngine.hasRecordPermission()) {
+            speechEngine.requestRecordPermission { granted ->
+                val actualConfig = if (granted) {
+                    finalConfig
+                } else {
+                    finalConfig.copy(inputMode = InputMode.KEYPAD)
+                }
+                launchSessionInternal(
+                    actualConfig,
+                    if (!granted) "未获麦克风权限，已自动启用『听音按键』模式" else ""
+                )
+            }
+        } else {
+            launchSessionInternal(finalConfig, "")
+        }
+    }
+
+    private fun launchSessionInternal(config: PracticeConfig, initialHint: String) {
+        timerJob?.cancel()
+        speechEngine.stopAll()
+        _uiState.value = PracticeUiState(
+            config = config,
+            isPracticing = true,
+            currentIndex = 0,
+            remainingMs = config.timeLimit.millis,
+            voiceHint = initialHint
+        )
+        loadAndSpeakQuestion(index = 0, lastQuestion = null)
+    }
+
+    /**
+     * 退出当前训练返回首页（彻底释放常驻麦克风硬件流）
+     */
+    fun stopSession() {
+        activeQuestionToken++
+        timerJob?.cancel()
+        speechEngine.release()
+        _uiState.update { it.copy(isPracticing = false) }
+    }
+
+    /**
+     * 加载第 [index] 题并极速播报纯算式（如 "六加二"，不带“等于”）
+     */
+    private fun loadAndSpeakQuestion(index: Int, lastQuestion: Question?) {
+        val token = ++activeQuestionToken
+        timerJob?.cancel()
+        speechEngine.stopAll()
+        currentQuestionSettled = false
+
+        val config = _uiState.value.config
+        val nextQ = QuestionGenerator.nextQuestion(
+            config = config,
+            statsMap = repository.statsMap.value,
+            lastQuestion = lastQuestion
+        )
+
+        _uiState.update {
+            it.copy(
+                currentIndex = index,
+                currentQuestion = nextQ,
+                phase = QuestionPhase.SPEAKING,
+                remainingMs = config.timeLimit.millis,
+                lockedElapsedMs = null,
+                voiceHint = "正在提问：${nextQ.spokenQuestion}"
+            )
+        }
+
+        speechEngine.speak(nextQ.spokenQuestion) {
+            if (!_uiState.value.isPracticing || currentQuestionSettled || token != activeQuestionToken) return@speak
+            beginCountdown(nextQ, token)
+        }
+    }
+
+    /**
+     * 题目播报完毕，立即启动毫秒级倒计时与语音监听
+     */
+    private fun beginCountdown(question: Question, token: Long) {
+        if (token != activeQuestionToken || currentQuestionSettled) return
+        val limitMs = _uiState.value.config.timeLimit.millis
+        questionStartTimeMs = PlatformStorage.currentTimeMillis()
+
+        _uiState.update {
+            it.copy(
+                phase = QuestionPhase.COUNTDOWN,
+                remainingMs = limitMs,
+                lockedElapsedMs = null,
+                voiceHint = if (it.config.inputMode == InputMode.VOICE) {
+                    "请直接喊出答案 (0~10)"
+                } else {
+                    "请点击数字键盘作答"
+                }
+            )
+        }
+
+        if (_uiState.value.config.inputMode == InputMode.VOICE) {
+            startVoiceListeningForQuestion(question, token)
+        }
+
+        timerJob?.cancel()
+        timerJob = scope.launch {
+            while (!currentQuestionSettled && token == activeQuestionToken) {
+                delay(25L)
+                if (token != activeQuestionToken || currentQuestionSettled) break
+                val now = PlatformStorage.currentTimeMillis()
+                val state = _uiState.value
+
+                if (state.phase == QuestionPhase.COUNTDOWN) {
+                    val elapsed = (now - questionStartTimeMs).coerceAtLeast(0L)
+                    val remain = (limitMs - elapsed).coerceAtLeast(0L)
+                    _uiState.update { it.copy(remainingMs = remain) }
+                    if (remain <= 0L) {
+                        settleQuestion(
+                            userAnswer = null,
+                            outcome = AnswerOutcome.TIMEOUT,
+                            elapsedMs = limitMs
+                        )
+                        break
+                    }
+                } else if (state.phase == QuestionPhase.SPEECH_DETECTED) {
+                    val lockedAt = state.lockedElapsedMs ?: limitMs
+                    val graceElapsed = now - (questionStartTimeMs + lockedAt)
+                    if (graceElapsed > 1200L) {
+                        settleQuestion(
+                            userAnswer = null,
+                            outcome = AnswerOutcome.TIMEOUT,
+                            elapsedMs = limitMs
+                        )
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    private fun startVoiceListeningForQuestion(question: Question, token: Long) {
+        speechEngine.startListening(
+            expectedAnswer = question.answer,
+            onSpeechDetected = {
+                if (token == activeQuestionToken && !currentQuestionSettled && _uiState.value.phase == QuestionPhase.COUNTDOWN) {
+                    val now = PlatformStorage.currentTimeMillis()
+                    val locked = (now - questionStartTimeMs)
+                        .coerceIn(100L, _uiState.value.config.timeLimit.millis)
+                    _uiState.update {
+                        it.copy(
+                            phase = QuestionPhase.SPEECH_DETECTED,
+                            lockedElapsedMs = locked,
+                            voiceHint = "已听见声音 (${locked / 100 / 10f}s)，识别中..."
+                        )
+                    }
+                }
+            },
+            onRecognizedNumber = { number, rawText ->
+                if (token == activeQuestionToken && !currentQuestionSettled) {
+                    val elapsed = _uiState.value.lockedElapsedMs
+                        ?: (PlatformStorage.currentTimeMillis() - questionStartTimeMs)
+                            .coerceIn(100L, _uiState.value.config.timeLimit.millis)
+                    val outcome = if (number == question.answer) {
+                        AnswerOutcome.CORRECT
+                    } else {
+                        AnswerOutcome.WRONG
+                    }
+                    _uiState.update { it.copy(voiceHint = "识别：「$rawText」→ $number") }
+                    settleQuestion(
+                        userAnswer = number,
+                        outcome = outcome,
+                        elapsedMs = elapsed
+                    )
+                }
+            },
+            onErrorOrEmpty = { reason ->
+                if (token == activeQuestionToken && !currentQuestionSettled) {
+                    _uiState.update {
+                        it.copy(voiceHint = "$reason（可点下方按键作答）")
+                    }
+                }
+            }
+        )
+    }
+
+    /**
+     * 用户通过屏幕 0~10 大数字按键提交答案
+     */
+    fun submitKeypadAnswer(answer: Int) {
+        val state = _uiState.value
+        val question = state.currentQuestion ?: return
+        if (currentQuestionSettled) return
+        if (state.phase != QuestionPhase.COUNTDOWN &&
+            state.phase != QuestionPhase.SPEECH_DETECTED &&
+            state.phase != QuestionPhase.SPEAKING
+        ) {
+            return
+        }
+
+        val now = PlatformStorage.currentTimeMillis()
+        val elapsed = if (questionStartTimeMs > 0L) {
+            (now - questionStartTimeMs).coerceIn(80L, state.config.timeLimit.millis)
+        } else {
+            300L
+        }
+        val outcome = if (answer == question.answer) {
+            AnswerOutcome.CORRECT
+        } else {
+            AnswerOutcome.WRONG
+        }
+        settleQuestion(
+            userAnswer = answer,
+            outcome = outcome,
+            elapsedMs = elapsed
+        )
+    }
+
+    /**
+     * 结算单题结果，记录入库，不播报带“等于”的冗长纠错，直接以视觉高亮提示后推进下一题
+     */
+    private fun settleQuestion(
+        userAnswer: Int?,
+        outcome: AnswerOutcome,
+        elapsedMs: Long
+    ) {
+        if (currentQuestionSettled) return
+        currentQuestionSettled = true
+        activeQuestionToken++
+        timerJob?.cancel()
+        speechEngine.stopAll()
+
+        val state = _uiState.value
+        val question = state.currentQuestion ?: return
+
+        val attempt = AttemptRecord(
+            question = question,
+            userAnswer = userAnswer,
+            outcome = outcome,
+            elapsedMs = elapsedMs,
+            timestampMs = PlatformStorage.currentTimeMillis()
+        )
+
+        repository.recordAttempt(attempt, state.config.timeLimit.millis)
+
+        val newCombo = if (outcome == AnswerOutcome.CORRECT) state.comboCount + 1 else 0
+        val newMaxCombo = maxOf(state.maxCombo, newCombo)
+        val updatedAttempts = state.roundAttempts + attempt
+
+        _uiState.update {
+            it.copy(
+                phase = QuestionPhase.FEEDBACK,
+                comboCount = newCombo,
+                maxCombo = newMaxCombo,
+                lastAttempt = attempt,
+                roundAttempts = updatedAttempts
+            )
+        }
+
+        scope.launch {
+            val feedbackDurationMs = if (outcome == AnswerOutcome.CORRECT) 500L else 950L
+            delay(feedbackDurationMs)
+            advanceOrFinish()
+        }
+    }
+
+    private fun advanceOrFinish() {
+        val state = _uiState.value
+        if (!state.isPracticing) return
+        val nextIndex = state.currentIndex + 1
+        if (nextIndex >= state.config.totalQuestions) {
+            speechEngine.release()
+            repository.recordSession(state.config, state.roundAttempts)
+            _uiState.update { it.copy(phase = QuestionPhase.SESSION_SUMMARY) }
+        } else {
+            loadAndSpeakQuestion(index = nextIndex, lastQuestion = state.currentQuestion)
+        }
+    }
+
+    fun clear() {
+        timerJob?.cancel()
+        speechEngine.release()
+        scope.cancel()
+    }
+}

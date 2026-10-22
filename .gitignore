@@ -1,0 +1,43 @@
+# Gradle & Kotlin Multiplatform
+.gradle/
+.kotlin/
+build/
+*/build/
+**/build/
+local.properties
+*.hprof
+
+# Keep Gradle Wrapper JAR
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA / Android Studio
+*.iml
+.idea/
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+output.json
+
+# Xcode / iOS
+build_ios/
+Payload/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcuserdata
+xcuserdata/
+*.xcworkspace
+!default.xcworkspace
+DerivedData/
+.swiftpm/
+iosApp/Pods/
+iosApp/.build/
+
+# OS & Temp files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+*.swp

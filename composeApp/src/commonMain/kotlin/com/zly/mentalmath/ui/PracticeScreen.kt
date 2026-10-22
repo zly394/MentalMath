@@ -1,0 +1,717 @@
+package com.zly.mentalmath.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.zly.mentalmath.model.AnswerOutcome
+import com.zly.mentalmath.model.InputMode
+import com.zly.mentalmath.model.Question
+
+@Composable
+fun PracticeScreen(
+    state: PracticeUiState,
+    onToggleInputMode: (InputMode) -> Unit,
+    onKeypadSubmit: (Int) -> Unit,
+    onRestartSession: () -> Unit,
+    onOpenAnalysis: () -> Unit,
+    onExit: () -> Unit
+) {
+    if (state.phase == QuestionPhase.SESSION_SUMMARY) {
+        SessionSummaryView(
+            state = state,
+            onRestartSession = onRestartSession,
+            onOpenAnalysis = onOpenAnalysis,
+            onExit = onExit
+        )
+        return
+    }
+
+    val question = state.currentQuestion ?: return
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isPad = maxWidth >= 600.dp
+
+        if (isPad) {
+            // Pad / 平板端：顶栏 + 下方左右双栏人体工学布局（左算式黑板，右超大数字键盘）
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                PracticeTopHeader(
+                    state = state,
+                    onExit = onExit,
+                    onToggleInputMode = onToggleInputMode
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 左栏：超大算式黑板卡片
+                    Box(
+                        modifier = Modifier
+                            .weight(0.52f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        QuestionBlackboardCard(
+                            state = state,
+                            question = question,
+                            isPad = true
+                        )
+                    }
+
+                    // 右栏：模式状态条 + 4 列严格对齐大数字键盘
+                    Column(
+                        modifier = Modifier
+                            .weight(0.48f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        VoiceHintBanner(state = state)
+                        Spacer(modifier = Modifier.height(14.dp))
+                        NumberKeypadGrid(
+                            enabled = state.phase != QuestionPhase.FEEDBACK,
+                            buttonHeight = 76.dp,
+                            onNumberClick = onKeypadSubmit
+                        )
+                    }
+                }
+            }
+        } else {
+            // 手机端：上（对称顶栏+进度） -> 中（固定答案框大算式） -> 下（4列严格对齐键盘）
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                PracticeTopHeader(
+                    state = state,
+                    onExit = onExit,
+                    onToggleInputMode = onToggleInputMode
+                )
+
+                QuestionBlackboardCard(
+                    state = state,
+                    question = question,
+                    isPad = false
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    VoiceHintBanner(state = state)
+                    NumberKeypadGrid(
+                        enabled = state.phase != QuestionPhase.FEEDBACK,
+                        buttonHeight = 62.dp,
+                        onNumberClick = onKeypadSubmit
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 三段式对称顶部导航与进度条（保证中间题号严格居中，右侧按钮单行不折行）
+ */
+@Composable
+private fun PracticeTopHeader(
+    state: PracticeUiState,
+    onExit: () -> Unit,
+    onToggleInputMode: (InputMode) -> Unit
+) {
+    val isVoice = state.config.inputMode == InputMode.VOICE
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左栏：退出
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                TextButton(
+                    onClick = onExit,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text(
+                        text = "← 退出",
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // 中栏：题号严格居中
+            Box(
+                modifier = Modifier.weight(1.1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "第 ${state.currentIndex + 1} / ${state.config.totalQuestions} 题",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1
+                )
+            }
+
+            // 右栏：模式切换胶囊
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable {
+                            val next = if (isVoice) InputMode.KEYPAD else InputMode.VOICE
+                            onToggleInputMode(next)
+                        }
+                ) {
+                    Text(
+                        text = if (isVoice) "🎤 语音·切按键" else "⌨️ 按键·切语音",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+
+        val progressColor = when {
+            state.phase == QuestionPhase.SPEECH_DETECTED -> Color(0xFF1E88E5)
+            state.timeProgress > 0.5f -> Color(0xFF2E7D32)
+            state.timeProgress > 0.25f -> Color(0xFFF57C00)
+            else -> Color(0xFFD32F2F)
+        }
+
+        LinearProgressIndicator(
+            progress = { state.timeProgress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(10.dp)
+                .clip(RoundedCornerShape(5.dp)),
+            color = progressColor,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val timeText = when (state.phase) {
+                QuestionPhase.SPEAKING -> "🔊 正在语音提问..."
+                QuestionPhase.COUNTDOWN -> {
+                    val sec = state.remainingMs / 100 / 10f
+                    "⏱ 剩余限时：${sec}秒（${state.config.timeLimit.label}档）"
+                }
+                QuestionPhase.SPEECH_DETECTED -> {
+                    val lockedSec = (state.lockedElapsedMs ?: 0L) / 100 / 10f
+                    "🎙 已开口锁表（反应 ${lockedSec}秒），识别中..."
+                }
+                QuestionPhase.FEEDBACK -> "本题结算"
+                QuestionPhase.SESSION_SUMMARY -> ""
+            }
+            Text(
+                text = timeText,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = progressColor,
+                maxLines = 1
+            )
+
+            if (state.comboCount >= 2) {
+                Surface(
+                    color = Color(0xFFFFF3E0),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "🔥 连对 x${state.comboCount}",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        color = Color(0xFFE65100),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 固定答案框对齐的超大算式展示卡片：如 `6 + 2 = [ ? ]` -> `6 + 2 = [ 8 ]`
+ */
+@Composable
+private fun QuestionBlackboardCard(
+    state: PracticeUiState,
+    question: Question,
+    isPad: Boolean
+) {
+    val lastAttempt = state.lastAttempt
+    val isFeedback = state.phase == QuestionPhase.FEEDBACK && lastAttempt != null
+
+    val cardColor = if (isFeedback && lastAttempt != null) {
+        when (lastAttempt.outcome) {
+            AnswerOutcome.CORRECT -> Color(0xFFE8F5E9)
+            AnswerOutcome.WRONG -> Color(0xFFFFEBEE)
+            AnswerOutcome.TIMEOUT -> Color(0xFFFFF8E1)
+        }
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    }
+
+    val answerBoxBorderColor = if (isFeedback && lastAttempt != null) {
+        when (lastAttempt.outcome) {
+            AnswerOutcome.CORRECT -> Color(0xFF2E7D32)
+            AnswerOutcome.WRONG -> Color(0xFFC62828)
+            AnswerOutcome.TIMEOUT -> Color(0xFFEF6C00)
+        }
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
+    val fontSize = if (isPad) 64.sp else 50.sp
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = if (isPad) 40.dp else 26.dp, horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 算式行：左侧算式 + 等于号 + 固定宽度答案框，切换状态绝不抖动
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "${question.leftExpression} = ",
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Box(
+                    modifier = Modifier
+                        .widthIn(min = if (isPad) 104.dp else 82.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(2.5.dp, answerBoxBorderColor, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isFeedback) question.answer.toString() else "?",
+                        fontSize = fontSize,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = answerBoxBorderColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            if (isFeedback && lastAttempt != null) {
+                val feedbackText = when (lastAttempt.outcome) {
+                    AnswerOutcome.CORRECT -> {
+                        "✓ 回答正确！反应耗时 ${lastAttempt.elapsedMs} ms"
+                    }
+                    AnswerOutcome.WRONG -> {
+                        "✗ 刚才答了 ${lastAttempt.userAnswer}，正确答案是 ${question.answer}（已记入错题本）"
+                    }
+                    AnswerOutcome.TIMEOUT -> {
+                        "⏰ 超过 ${state.config.timeLimit.label}未答，正确答案是 ${question.answer}（已记入错题本）"
+                    }
+                }
+                Text(
+                    text = feedbackText,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = answerBoxBorderColor,
+                    textAlign = TextAlign.Center
+                )
+            } else {
+                Text(
+                    text = state.voiceHint,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoiceHintBanner(state: PracticeUiState) {
+    val isVoice = state.config.inputMode == InputMode.VOICE
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isVoice) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                }
+            )
+            .padding(vertical = 8.dp, horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (isVoice) {
+                "🎙 语音抢答中：直接喊出 0~10，也可直接点下方数字键"
+            } else {
+                "⌨️ 听音按键中：听完题目后快速点击下方 0~10 数字键"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = if (isVoice) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        )
+    }
+}
+
+/**
+ * 几何级严格 4 列垂直对齐的 0 ~ 10 大数字键盘
+ *
+ * 每一行均采用左右对称双半区（Left weight 1f + Right weight 1f，间距 10.dp）：
+ * - 第 1 行：左半区 [1, 2]  |  右半区 [3, 4]
+ * - 第 2 行：左半区 [5, 6]  |  右半区 [7, 8]
+ * - 第 3 行：左半区 [9, 0]  |  右半区 [ 10 ]
+ * 由此保证 9 与 1/5、0 与 2/6、10 的左右边界与 3/7 和 4/8 做到 100% 像素级垂直对齐！
+ */
+@Composable
+private fun NumberKeypadGrid(
+    enabled: Boolean,
+    buttonHeight: Dp,
+    onNumberClick: (Int) -> Unit
+) {
+    val gap = 10.dp
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(gap)
+    ) {
+        // 第 1 行：1, 2 | 3, 4
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                KeypadButton(1, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+                KeypadButton(2, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+            }
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                KeypadButton(3, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+                KeypadButton(4, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+            }
+        }
+
+        // 第 2 行：5, 6 | 7, 8
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                KeypadButton(5, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+                KeypadButton(6, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+            }
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                KeypadButton(7, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+                KeypadButton(8, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+            }
+        }
+
+        // 第 3 行：9, 0 | 10（10 精确占满右半区，与上方 3+4 完全对齐）
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                KeypadButton(9, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+                KeypadButton(0, enabled, buttonHeight, Modifier.weight(1f), onNumberClick)
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                KeypadButton(
+                    number = 10,
+                    enabled = enabled,
+                    buttonHeight = buttonHeight,
+                    modifier = Modifier.fillMaxWidth(),
+                    onNumberClick = onNumberClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeypadButton(
+    number: Int,
+    enabled: Boolean,
+    buttonHeight: Dp,
+    modifier: Modifier = Modifier,
+    onNumberClick: (Int) -> Unit
+) {
+    Button(
+        onClick = { onNumberClick(number) },
+        enabled = enabled,
+        modifier = modifier.height(buttonHeight),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (number == 10) {
+                MaterialTheme.colorScheme.tertiary
+            } else {
+                MaterialTheme.colorScheme.primary
+            }
+        )
+    ) {
+        Text(
+            text = number.toString(),
+            fontSize = 26.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+    }
+}
+
+/**
+ * 本轮训练完成后的成绩单与错题复盘视图
+ */
+@Composable
+private fun SessionSummaryView(
+    state: PracticeUiState,
+    onRestartSession: () -> Unit,
+    onOpenAnalysis: () -> Unit,
+    onExit: () -> Unit
+) {
+    val attempts = state.roundAttempts
+    val correctCount = attempts.count { it.outcome == AnswerOutcome.CORRECT }
+    val wrongCount = attempts.count { it.outcome == AnswerOutcome.WRONG }
+    val timeoutCount = attempts.count { it.outcome == AnswerOutcome.TIMEOUT }
+    val correctAttempts = attempts.filter { it.outcome == AnswerOutcome.CORRECT }
+    val avgMs = if (correctAttempts.isEmpty()) {
+        0L
+    } else {
+        correctAttempts.sumOf { it.elapsedMs } / correctAttempts.size
+    }
+    val mistakes = attempts.filter { it.outcome != AnswerOutcome.CORRECT }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val horizontalPadding = if (maxWidth >= 600.dp) 64.dp else 20.dp
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = horizontalPadding, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "🎉 本轮挑战完成！",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SummaryMetric(Modifier.weight(1f), "答对", "$correctCount/${attempts.size}")
+                        SummaryMetric(Modifier.weight(1f), "答错", "${wrongCount}题")
+                        SummaryMetric(Modifier.weight(1f), "超时", "${timeoutCount}题")
+                        SummaryMetric(Modifier.weight(1f), "最高连击", "${state.maxCombo}连")
+                    }
+                    Text(
+                        text = "平均反应速度：${avgMs} 毫秒（限时档位：${state.config.timeLimit.label}）",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            if (mistakes.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "本轮错题与超时题（已自动记入错题本）：",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE65100)
+                        )
+                        mistakes.forEach { item ->
+                            val reason = if (item.outcome == AnswerOutcome.TIMEOUT) {
+                                "超时未答"
+                            } else {
+                                "误答为 ${item.userAnswer}"
+                            }
+                            Text(
+                                text = "• ${item.question.fullExpression}   （$reason）",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onExit,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("返回首页", fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick = onOpenAnalysis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("薄弱环节分析", fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Button(
+                onClick = onRestartSession,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = "再来一轮",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryMetric(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1
+        )
+    }
+}
