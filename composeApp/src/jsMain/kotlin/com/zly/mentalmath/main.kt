@@ -22,13 +22,21 @@ import org.khronos.webgl.DataView
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
+    console.log(">>> [MentalMath] main() started")
     onWasmReady {
-        val body = document.body ?: return@onWasmReady
+        console.log(">>> [MentalMath] onWasmReady fired")
+        val body = document.body
+        if (body == null) {
+            console.error(">>> [MentalMath] document.body is null!")
+            return@onWasmReady
+        }
         ComposeViewport(body) {
+            console.log(">>> [MentalMath] ComposeViewport composable entered")
             var cnFontFamily by remember { mutableStateOf<FontFamily?>(null) }
             val fontFamilyResolver = LocalFontFamilyResolver.current
 
             LaunchedEffect(Unit) {
+                console.log(">>> [MentalMath] LaunchedEffect font loading started")
                 try {
                     val response = window.fetch("app_cn.ttf").await()
                     if (response.ok) {
@@ -44,6 +52,7 @@ fun main() {
                         )
                         fontFamilyResolver.preload(family)
                         cnFontFamily = family
+                        console.log(">>> [MentalMath] Custom font successfully preloaded!")
                     }
                 } catch (e: Throwable) {
                     console.error("Failed to load app_cn.ttf:", e)

@@ -119,52 +119,73 @@ tasks.matching { it.name.startsWith("compile") && it.name.endsWith("ExecutableKo
             var content = runtimeJs.readText(Charsets.UTF_8)
             val d = "$"
             
-            // 1. 动态提取 AtomicReference 属性名 (例如 this.r25_1 = value)
-            val refPropRegex = Regex("function AtomicReference\\(value\\)\\s*\\{\\s*this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;")
-            val refMatch = refPropRegex.find(content)
-            if (refMatch != null) {
-                val refProp = refMatch.groupValues[1]
-                // 修补 AtomicReference.getValue
-                content = content.replace(
-                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{[\\s\\S]*?return\\s+tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
-                    "protoOf(AtomicReference).$1 = function () { return this.$refProp; };"
-                )
-                // 修补 AtomicReference.getAndSet
-                content = content.replace(
-                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(value\\)\\s*\\{[\\s\\S]*?var oldValue\\s*=[\\s\\S]*?return oldValue;\\s*\\};"),
-                    "protoOf(AtomicReference).$1 = function (value) { var oldValue = this.$refProp; this.$refProp = value; return oldValue; };"
-                )
-                // 修补 AtomicReference.compareAndSet
-                content = content.replace(
-                    Regex("protoOf\\(AtomicReference\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(expect,\\s*newValue\\)\\s*\\{[\\s\\S]*?\\n\\s*\\};"),
-                    "protoOf(AtomicReference).$1 = function (expect, newValue) { if (equals(this.$refProp, expect)) { this.$refProp = newValue; return true; } return false; };"
-                )
+            // 1. 动态提取属性名 (refProp, intProp)
+            val refPropMatch = Regex("this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;\\s*\\}\\s*protoOf\\(AtomicReference\\)").find(content)
+                ?: Regex("function AtomicReference\\(value\\)\\s*\\{\\s*this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;").find(content)
+            val intPropMatch = Regex("function AtomicInt\\(value\\)\\s*\\{\\s*this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;").find(content)
+                ?: Regex("this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;\\s*\\}\\s*protoOf\\(AtomicInt\\)").find(content)
+                
+            val refProp = refPropMatch?.groupValues?.get(1) ?: "n24_1"
+            val intProp = intPropMatch?.groupValues?.get(1) ?: "p1m_1"
+
+            // 2. 收集整个运行时中在 Atomic 实例上被调用的所有方法
+            val refFields = Regex("this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*new AtomicReference").findAll(content).map { it.groupValues[1] }.toSet()
+            val refMethods = mutableSetOf<String>()
+            for (f in refFields) {
+                Regex("\\b" + Regex.escape(f) + "\\.([a-zA-Z0-9_" + d + "]+)\\s*\\(").findAll(content).forEach {
+                    refMethods.add(it.groupValues[1])
+                }
             }
 
-            // 2. 动态提取 AtomicInt 属性名 (例如 this.t1n_1 = value)
-            val intPropRegex = Regex("function AtomicInt\\(value\\)\\s*\\{\\s*this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*value;")
-            val intMatch = intPropRegex.find(content)
-            if (intMatch != null) {
-                val intProp = intMatch.groupValues[1]
-                // 修补 AtomicInt.getValue
-                content = content.replace(
-                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(\\)\\s*\\{[\\s\\S]*?return\\s+tmp" + "\\" + d + "ret" + "\\" + d + "1;\\s*\\};"),
-                    "protoOf(AtomicInt).$1 = function () { return this.$intProp; };"
-                )
-                // 修补 AtomicInt.addAndGet
-                content = content.replace(
-                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(amount\\)\\s*\\{[\\s\\S]*?return\\s+tmp" + "\\" + d + "ret" + "\\" + d + "3;\\s*\\};"),
-                    "protoOf(AtomicInt).$1 = function (amount) { this.$intProp = this.$intProp + amount | 0; return this.$intProp; };"
-                )
-                // 修补 AtomicInt.compareAndSet
-                content = content.replace(
-                    Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*function\\s*\\(expect,\\s*newValue\\)\\s*\\{[\\s\\S]*?\\n\\s*\\};"),
-                    "protoOf(AtomicInt).$1 = function (expect, newValue) { if (equals(this.$intProp, expect)) { this.$intProp = newValue; return true; } return false; };"
-                )
+            val intFields = Regex("this\\.([a-zA-Z0-9_" + d + "]+)\\s*=\\s*new AtomicInt").findAll(content).map { it.groupValues[1] }.toSet()
+            val intMethods = mutableSetOf<String>()
+            for (f in intFields) {
+                Regex("\\b" + Regex.escape(f) + "\\.([a-zA-Z0-9_" + d + "]+)\\s*\\(").findAll(content).forEach {
+                    intMethods.add(it.groupValues[1])
+                }
+            }
+            Regex("protoOf\\(AtomicInt\\)\\.([a-zA-Z0-9_" + d + "]+)\\s*=").findAll(content).forEach {
+                intMethods.add(it.groupValues[1])
             }
 
-            runtimeJs.writeText(content, Charsets.UTF_8)
-            println(">>> [MentalMath Patch] Successfully pre-patched runtime.js (refProp=${refMatch?.groupValues?.get(1)}, intProp=${intMatch?.groupValues?.get(1)})")
+            // 3. 构建无缺陷的纯正 JS 类实现
+            val sb = StringBuilder()
+            sb.append("function AtomicReference(value) {\n    this.").append(refProp).append(" = value;\n  }\n")
+            for (m in refMethods) {
+                val isCas = Regex("\\." + Regex.escape(m) + "\\s*\\([^,()]+,[^,()]+\\)").containsMatchIn(content)
+                val isZeroArg = Regex("\\." + Regex.escape(m) + "\\s*\\(\\s*\\)").containsMatchIn(content)
+                if (isZeroArg) {
+                    sb.append("  protoOf(AtomicReference).").append(m).append(" = function () { return this.").append(refProp).append("; };\n")
+                } else if (isCas) {
+                    sb.append("  protoOf(AtomicReference).").append(m).append(" = function (expect, newValue) { if (equals(this.").append(refProp).append(", expect)) { this.").append(refProp).append(" = newValue; return true; } return false; };\n")
+                } else {
+                    sb.append("  protoOf(AtomicReference).").append(m).append(" = function (value) { var oldValue = this.").append(refProp).append("; this.").append(refProp).append(" = value; return oldValue; };\n")
+                }
+            }
+
+            sb.append("  function AtomicInt(value) {\n    this.").append(intProp).append(" = value;\n  }\n")
+            for (m in intMethods) {
+                val isCas = Regex("\\." + Regex.escape(m) + "\\s*\\([^,()]+,[^,()]+\\)").containsMatchIn(content)
+                val isZeroArg = Regex("\\." + Regex.escape(m) + "\\s*\\(\\s*\\)").containsMatchIn(content)
+                val isAmount = content.contains("protoOf(AtomicInt)." + m + " = function (amount)") || Regex("\\." + Regex.escape(m) + "\\s*\\(\\s*amount\\s*\\)").containsMatchIn(content)
+                if (isZeroArg) {
+                    sb.append("  protoOf(AtomicInt).").append(m).append(" = function () { return this.").append(intProp).append("; };\n")
+                } else if (isCas) {
+                    sb.append("  protoOf(AtomicInt).").append(m).append(" = function (expect, newValue) { if (equals(this.").append(intProp).append(", expect)) { this.").append(intProp).append(" = newValue; return true; } return false; };\n")
+                } else if (isAmount) {
+                    sb.append("  protoOf(AtomicInt).").append(m).append(" = function (amount) { this.").append(intProp).append(" = this.").append(intProp).append(" + amount | 0; return this.").append(intProp).append("; };\n")
+                } else {
+                    sb.append("  protoOf(AtomicInt).").append(m).append(" = function (value) { var oldValue = this.").append(intProp).append("; this.").append(intProp).append(" = value; return oldValue; };\n")
+                }
+            }
+
+            val startIdx = content.indexOf("function AtomicReference(value) {")
+            val endIdx = content.indexOf("function trackWrite(", startIdx)
+            if (startIdx != -1 && endIdx != -1) {
+                content = content.substring(0, startIdx) + sb.toString() + "  " + content.substring(endIdx)
+                runtimeJs.writeText(content, Charsets.UTF_8)
+                println(">>> [MentalMath Patch] Successfully injected clean Atomic classes (refProp=" + refProp + ", intProp=" + intProp + ", refMethods=" + refMethods + ", intMethods=" + intMethods + ")")
+            }
         }
     }
 }
