@@ -22,18 +22,27 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Build Kotlin Multiplatform iOS Framework (iosArm64)
+        run: |
+          ./gradlew :composeApp:linkReleaseFrameworkIosArm64 --no-daemon --stacktrace
+
       - name: Build unsigned iOS App (arm64 device)
+        env:
+          CI: "true"
         run: |
           xcodebuild \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
             -configuration Release \
             -sdk iphoneos \
+            -arch arm64 \
             -derivedDataPath build_ios \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            clean build
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
+            build
 
       - name: Package MentalMath-unsigned.ipa
         run: |
