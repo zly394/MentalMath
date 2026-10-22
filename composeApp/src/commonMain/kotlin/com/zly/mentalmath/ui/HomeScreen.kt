@@ -172,7 +172,7 @@ fun HomeScreen(
 private fun BrandHeader() {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "MentalMath 口算特训",
+            text = "口算特训",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.primary
