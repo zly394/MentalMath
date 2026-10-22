@@ -62,15 +62,11 @@ actual class SpeechEngine actual constructor() {
             val count = view.getInt32(4, false)
             var pos = 8
             val map = HashMap<String, PcmSlice>(count * 2)
-            val u8 = Uint8Array(buffer)
 
             for (i in 0 until count) {
                 val keyLen = view.getUint16(pos, false).toInt()
                 pos += 2
-                val keyBytes = ByteArray(keyLen)
-                for (b in 0 until keyLen) {
-                    keyBytes[b] = u8.asDynamic()[pos + b] as Byte
-                }
+                val keyBytes = ByteArray(keyLen) { b -> view.getInt8(pos + b) }
                 val key = keyBytes.decodeToString()
                 pos += keyLen
                 val offset = view.getInt32(pos, false)
