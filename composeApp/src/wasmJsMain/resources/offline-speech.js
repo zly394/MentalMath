@@ -2,11 +2,20 @@
   const grammar = JSON.stringify(['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '两', '[unk]']);
   const modelUrl = new URL('vosk-model-cn.tar.gz', document.baseURI).href;
   let modelPromise = null;
+  const workletPromises = new WeakMap();
   const listeners = new Set();
+  const preparationListeners = new Set();
+  let preparation = { status: 'idle' };
   const diagnostic = (event, detail = '') => window.mentalMathDiagnostics?.record(event, detail);
+
+  function setPreparation(status, message = '') {
+    preparation = { status, message };
+    for (const listener of preparationListeners) listener(preparation);
+  }
 
   function loadModel() {
     if (modelPromise) return modelPromise;
+    setPreparation('loading');
     modelPromise = new Promise((resolve, reject) => {
       if (!globalThis.mentalMathVosk) {
         reject(new Error('离线识别组件未加载'));
@@ -23,6 +32,7 @@
         diagnostic('offline_model_error');
         modelPromise = null;
         model.terminate();
+        setPreparation('error', error.message);
         if (!settled) {
           settled = true;
           reject(error);
@@ -38,6 +48,7 @@
         if (message.result) {
           settled = true;
           diagnostic('offline_model_ready');
+          setPreparation('ready');
           resolve(model);
         } else {
           fail(new Error('离线模型加载失败'));
@@ -48,12 +59,37 @@
       });
     }).catch(error => {
       modelPromise = null;
+      if (preparation.status !== 'error') setPreparation('error', error.message);
       throw error;
     });
     return modelPromise;
   }
 
+  function loadCaptureModule(context) {
+    let loading = workletPromises.get(context);
+    if (!loading) {
+      loading = context.audioWorklet.addModule(
+        new URL('offline-capture.js', document.baseURI).href
+      ).catch(error => {
+        workletPromises.delete(context);
+        throw error;
+      });
+      workletPromises.set(context, loading);
+    }
+    return loading;
+  }
+
   class MentalMathOfflineRecognition extends EventTarget {
+    static observePreparation(listener) {
+      preparationListeners.add(listener);
+      listener(preparation);
+      return () => preparationListeners.delete(listener);
+    }
+
+    static preload() {
+      return loadModel();
+    }
+
     constructor() {
       super();
       this.stopped = false;
@@ -82,7 +118,7 @@
         listeners.add(this);
         const context = globalThis.MentalMathBrowserSpeech.audioContext;
         if (!context?.audioWorklet) throw new Error('当前浏览器不支持离线收音，请更新 Safari');
-        await context.audioWorklet.addModule(new URL('offline-capture.js', document.baseURI).href);
+        await loadCaptureModule(context);
         if (this.stopped) return;
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }

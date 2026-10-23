@@ -28,8 +28,8 @@ private fun logFontReady(): Unit = js("console.log('>>> [MentalMath] Custom font
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     SpeechDiagnostics.listener = ::recordSpeechDiagnostic
-    val body = document.body ?: error("Document body is unavailable")
-    ComposeViewport(body) {
+    val app = document.getElementById("app") ?: error("Application container is unavailable")
+    ComposeViewport(app) {
         LaunchedEffect(Unit) {
             document.getElementById("boot-status")?.remove()
         }

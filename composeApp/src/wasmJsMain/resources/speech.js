@@ -16,6 +16,11 @@ class MentalMathBrowserSpeech {
         console.error('Failed to load phrases.pak; using speech synthesis:', error);
       });
     }
+    if (window.isSecureContext && navigator.mediaDevices) {
+      this.recognitionType()?.preload?.().catch(error => {
+        console.error('Offline model preload failed; voice answers will retry:', error);
+      });
+    }
   }
 
   async loadPack() {

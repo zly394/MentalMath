@@ -27,7 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -173,16 +172,7 @@ private fun PracticeTopHeader(
                 modifier = Modifier.weight(1f),
                 contentAlignment = Alignment.CenterStart
             ) {
-                TextButton(
-                    onClick = onExit,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text(
-                        text = "← 退出",
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
+                BackButton(onClick = onExit)
             }
 
             // 中栏：题号严格居中

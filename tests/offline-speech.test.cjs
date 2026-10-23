@@ -7,9 +7,9 @@ const vm = require('node:vm');
 const resources = path.join(__dirname, '..', 'composeApp', 'src', 'wasmJsMain', 'resources');
 const source = fs.readFileSync(path.join(resources, 'offline-speech.js'), 'utf8');
 
-function environment({ microphone, acceptError = false, removeError = false } = {}) {
+function environment({ microphone, acceptError = false, removeError = false, worklet } = {}) {
   const models = [], recognizers = [], nodes = [], timers = [], errors = [];
-  let stoppedTracks = 0, captures = 0;
+  let stoppedTracks = 0, captures = 0, workletLoads = 0;
   class Emitter {
     handlers = {};
     on(type, handler) { this.handlers[type] = handler; }
@@ -47,7 +47,10 @@ function environment({ microphone, acceptError = false, removeError = false } = 
   const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
   const audioContext = {
     sampleRate: 48000, destination: {},
-    audioWorklet: { addModule: async () => {} },
+    audioWorklet: { addModule: async () => {
+      workletLoads++;
+      if (worklet) await worklet();
+    } },
     createMediaStreamSource: () => ({ connect() {}, disconnect() {} })
   };
   const context = {
@@ -69,6 +72,8 @@ function environment({ microphone, acceptError = false, removeError = false } = 
   return {
     context, models, recognizers, nodes, timers, errors, track,
     stoppedTracks: () => stoppedTracks, captures: () => captures,
+    workletLoads: () => workletLoads,
+    preload: () => context.MentalMathOfflineRecognition.preload(),
     create: () => new context.MentalMathOfflineRecognition(),
     async start() {
       const recognition = this.create();
@@ -103,10 +108,93 @@ test('one model is reused across questions and each microphone is released', asy
   first.abort(); first.abort();
   const second = await env.start();
   assert.equal(env.models.length, 1);
+  assert.equal(env.workletLoads(), 1);
   assert.equal(env.recognizers.length, 2);
   assert.equal(env.stoppedTracks(), 1);
   assert.equal(env.nodes[0].port.closed, true);
   assert.equal(env.recognizers[0].removed, true);
+  second.abort();
+});
+
+test('homepage preload shares the pending model with practice without opening a microphone', async () => {
+  const env = environment();
+  const preparing = env.preload();
+  assert.equal(env.preload(), preparing);
+  assert.equal(env.models.length, 1);
+  assert.equal(env.captures(), 0);
+  assert.equal(env.workletLoads(), 0);
+  const recognition = env.create();
+  const starting = recognition.start();
+  env.models[0].emit('load', { result: true });
+  await Promise.all([preparing, starting]);
+  assert.equal(env.models.length, 1);
+  recognition.abort();
+  const next = await env.start();
+  assert.equal(env.models.length, 1);
+  assert.equal(env.models[0].terminated, undefined);
+  assert.equal(env.workletLoads(), 1);
+  next.abort();
+});
+
+test('preparation observers receive loading, ready, runtime error and retry states', async () => {
+  const env = environment();
+  const states = [];
+  const stop = env.context.MentalMathOfflineRecognition.observePreparation(state => states.push(state));
+  const preparing = env.preload();
+  env.models[0].emit('load', { result: true });
+  await preparing;
+  const late = [];
+  env.context.MentalMathOfflineRecognition.observePreparation(state => late.push(state.status));
+  assert.deepEqual(late, ['ready']);
+  env.models[0].emit('error', { error: 'worker stopped' });
+  assert.deepEqual(states.map(state => state.status), ['idle', 'loading', 'ready', 'error']);
+  assert.equal(states.at(-1).message, 'worker stopped');
+  const retry = env.preload();
+  assert.equal(states.at(-1).status, 'loading');
+  env.models[1].emit('load', { result: true });
+  await retry;
+  stop();
+  env.models[1].emit('error', { error: 'stopped again' });
+  assert.equal(states.at(-1).status, 'ready');
+});
+
+test('failed homepage preload can be retried when entering practice', async () => {
+  const env = environment();
+  const preparing = env.preload();
+  env.models[0].emit('error', { error: 'download failed' });
+  await assert.rejects(preparing, /download failed/);
+  const recognition = env.create();
+  const starting = recognition.start();
+  assert.equal(env.models.length, 2);
+  env.models[1].emit('load', { result: true });
+  await starting;
+  assert.equal(env.captures(), 1);
+  recognition.abort();
+});
+
+test('a failed worklet load is retried instead of caching the failure', async () => {
+  let attempts = 0;
+  const env = environment({ worklet: async () => {
+    if (++attempts === 1) throw new Error('worklet unavailable');
+  } });
+  const first = await env.start();
+  assert.equal(first.stopped, true);
+  assert.equal(env.captures(), 0);
+  const second = await env.start();
+  assert.equal(second.stopped, false);
+  assert.equal(env.workletLoads(), 2);
+  second.abort();
+});
+
+test('replacing the audio context loads its own worklet module', async () => {
+  const env = environment();
+  const first = await env.start();
+  first.abort();
+  env.context.MentalMathBrowserSpeech.audioContext = {
+    ...env.context.MentalMathBrowserSpeech.audioContext
+  };
+  const second = await env.start();
+  assert.equal(env.workletLoads(), 2);
   second.abort();
 });
 

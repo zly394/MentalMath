@@ -25,12 +25,51 @@
             user-select: none;
             touch-action: manipulation;
         }
+        #app { width: 100%; height: 100%; }
+        #offline-status {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            left: 50%;
+            transform: translateX(-50%);
+            box-sizing: border-box;
+            width: min(420px, calc(100% - 24px));
+            padding: 16px 44px 16px 16px;
+            border: 1px solid #BFDBFE;
+            border-radius: 16px;
+            background: #EFF6FF;
+            color: #1E3A8A;
+            box-shadow: 0 4px 20px #1E3A8A22;
+            font: 14px/1.5 system-ui, sans-serif;
+            z-index: 900;
+        }
+        #offline-status-title { display: block; font-size: 16px; }
+        #offline-status-detail { margin: 6px 0 0; }
+        #offline-status-progress { width: 100%; height: 8px; margin-top: 10px; accent-color: #1D4ED8; }
+        #offline-status button {
+            min-height: 44px;
+            border: 0;
+            background: transparent;
+            color: #1D4ED8;
+            font: inherit;
+            cursor: pointer;
+        }
+        #offline-status #offline-status-close { position: absolute; top: 0; right: 0; width: 44px; font-size: 24px; }
+        #offline-status #offline-status-retry { padding: 0; font-weight: 600; }
     </style>
     <script src="offline-speech.js"></script>
     <script src="speech.js"></script>
 </head>
 <body>
     <script src="speech-diagnostics.js"></script>
+    <div id="app"></div>
+    <aside id="offline-status" role="status" aria-live="polite" aria-atomic="true" hidden>
+        <strong id="offline-status-title"></strong>
+        <p id="offline-status-detail"></p>
+        <progress id="offline-status-progress" max="1" aria-label="离线语音模型加载进度"></progress>
+        <button id="offline-status-retry" type="button" hidden>重试加载</button>
+        <button id="offline-status-close" type="button" aria-label="收起离线加载提示">×</button>
+    </aside>
+    <script src="offline-status.js"></script>
     <div id="boot-status" role="status" style="position:fixed;inset:0;display:grid;place-content:center;padding:24px;font-family:sans-serif;z-index:1000;background:#F8FAFC">
         正在加载口算特训……
     </div>

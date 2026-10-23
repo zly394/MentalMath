@@ -10,7 +10,8 @@ const pack = fs.readFileSync(path.join(root, 'composeApp', 'src', 'androidMain',
 
 function environment({
   secure = true, packAvailable = true, audioSession = true, deferredEnd = false,
-  audioState = 'running', resumeError = false, manualTimers = false
+  audioState = 'running', resumeError = false, manualTimers = false,
+  search = '?speechEngine=browser', offlinePreload
 } = {}) {
   const sources = [];
   const recognitions = [];
@@ -100,7 +101,7 @@ function environment({
     };
   }
   context.window = {
-    location: { search: '?speechEngine=browser' },
+    location: { search },
     isSecureContext: secure,
     AudioContext,
     SpeechRecognition: Recognition,
@@ -109,6 +110,11 @@ function environment({
       speak(utterance) { utterances.push(utterance); }
     }
   };
+  if (offlinePreload) {
+    context.MentalMathOfflineRecognition = class {
+      static preload = offlinePreload;
+    };
+  }
   vm.createContext(context);
   vm.runInContext(script, context);
   const engine = new context.MentalMathBrowserSpeech();
@@ -119,6 +125,31 @@ function environment({
     ready: context.MentalMathBrowserSpeech.loading
   };
 }
+
+test('offline model preparation begins on the homepage without audio or microphone access', async () => {
+  let preloads = 0;
+  const env = environment({ search: '', offlinePreload: async () => { preloads++; } });
+  await env.ready;
+  assert.equal(preloads, 1);
+  assert.equal(env.audioContext(), null);
+  assert.equal(env.trackStopped(), false);
+  assert.equal(env.recognitions.length, 0);
+});
+
+test('homepage preload errors are logged without blocking the app', async () => {
+  const env = environment({ search: '', offlinePreload: async () => { throw new Error('model unavailable'); } });
+  await env.ready;
+  assert.match(String(env.errors[0]), /model unavailable/);
+  assert.equal(env.audioContext(), null);
+});
+
+test('system recognition and insecure pages do not preload the offline model', async () => {
+  let preloads = 0;
+  const offlinePreload = async () => { preloads++; };
+  await environment({ offlinePreload }).ready;
+  await environment({ search: '', secure: false, offlinePreload }).ready;
+  assert.equal(preloads, 0);
+});
 
 test('the production voice pack contains all 132 questions and plays PCM', async () => {
   const env = environment();
