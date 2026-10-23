@@ -157,7 +157,7 @@ actual class SpeechEngine actual constructor() {
         }
     }
 
-    actual fun speak(text: String, onDone: () -> Unit) {
+    actual fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit) {
         stopAll()
         val myToken = ++speakToken
         ensureVoicePackLoaded()

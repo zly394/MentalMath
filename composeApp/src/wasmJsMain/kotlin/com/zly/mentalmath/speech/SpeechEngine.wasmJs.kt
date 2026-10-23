@@ -5,7 +5,7 @@ import com.zly.mentalmath.domain.NumberVoiceParser
 private external class MentalMathBrowserSpeech : JsAny {
     fun hasRecordPermission(): Boolean
     fun requestRecordPermission(onResult: (Boolean) -> Unit)
-    fun speak(text: String, onDone: () -> Unit)
+    fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit)
     fun startListening(
         onListeningReady: () -> Unit,
         onSpeechDetected: () -> Unit,
@@ -24,8 +24,8 @@ actual class SpeechEngine actual constructor() {
         browser.requestRecordPermission(onResult)
     }
 
-    actual fun speak(text: String, onDone: () -> Unit) {
-        browser.speak(text, onDone)
+    actual fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit) {
+        browser.speak(text, onDone, onError)
     }
 
     actual fun startListening(

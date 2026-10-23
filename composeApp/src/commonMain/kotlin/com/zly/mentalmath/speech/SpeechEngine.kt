@@ -16,9 +16,10 @@ expect class SpeechEngine() {
     fun requestRecordPermission(onResult: (Boolean) -> Unit)
 
     /**
-     * 极速播报文本（如 "3加5"），播报完成（或模拟器无 TTS 时自动兜底）回调 [onDone]
+     * 极速播报文本（如 "3加5"），播报完成（或模拟器无 TTS 时自动兜底）回调 [onDone]。
+     * Web 等待上一轮识别结束后播报，音频准备失败时通过 [onError] 提示并回退按键。
      */
-    fun speak(text: String, onDone: () -> Unit)
+    fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit)
 
     /**
      * 开启单题流式语音抢答监听

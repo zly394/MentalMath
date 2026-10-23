@@ -241,7 +241,7 @@ actual class SpeechEngine actual constructor() {
      * 100% 离线整句神经网络女声（晓晓）零拷贝播报
      * 播报同时在后台预构建本题全新的 Recognizer，播报完毕即刻 0 等待开启麦克风
      */
-    actual fun speak(text: String, onDone: () -> Unit) {
+    actual fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit) {
         stopAll()
         val mySpeakToken = speakTokenGen.incrementAndGet()
         isSpeakingActive.set(true)

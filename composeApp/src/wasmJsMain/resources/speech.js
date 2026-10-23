@@ -7,6 +7,8 @@ class MentalMathBrowserSpeech {
     this.token = 0;
     this.source = null;
     this.recognition = null;
+    this.recognitionEnd = null;
+    this.listeningToken = 0;
     this.permissionGranted = false;
     if (!MentalMathBrowserSpeech.loading) {
       MentalMathBrowserSpeech.loading = this.loadPack().catch(error => {
@@ -41,11 +43,44 @@ class MentalMathBrowserSpeech {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       MentalMathBrowserSpeech.audioContext = new AudioContext();
     }
-    const context = MentalMathBrowserSpeech.audioContext;
-    if (context.state === 'suspended') {
-      context.resume().catch(error => console.error('Audio resume failed:', error));
+    return MentalMathBrowserSpeech.audioContext;
+  }
+
+  setAudioSession(type) {
+    if (!navigator.audioSession) return;
+    try {
+      navigator.audioSession.type = type;
+      window.mentalMathDiagnostics?.record('audio_session', type);
+    } catch (error) {
+      console.warn('Audio session selection is unavailable:', error);
     }
-    return context;
+  }
+
+  async waitForRecognitionEnd() {
+    const pending = this.recognitionEnd;
+    if (!pending) return;
+    window.mentalMathDiagnostics?.record('recognition_release_wait');
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Microphone release timed out')), 3000);
+      pending.then(() => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  }
+
+  finishPlayback(context, endTime, done) {
+    // Buffer completion precedes the last audible samples at the output device.
+    const timestamp = context.getOutputTimestamp?.();
+    const delayMs = timestamp && timestamp.contextTime > 0
+      ? timestamp.performanceTime + (endTime - timestamp.contextTime) * 1000 - performance.now()
+      : ((context.baseLatency || 0) + (context.outputLatency || 0) +
+          endTime - context.currentTime) * 1000;
+    if (delayMs > 0) {
+      setTimeout(done, delayMs);
+    } else {
+      done();
+    }
   }
 
   hasRecordPermission() {
@@ -60,32 +95,57 @@ class MentalMathBrowserSpeech {
       return;
     }
     try {
-      this.audioContext();
+      this.setAudioSession('play-and-record');
+      const context = this.audioContext();
+      if (context.state !== 'running') {
+        context.resume().catch(error => console.error('Audio resume failed:', error));
+      }
       navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
         stream.getTracks().forEach(track => track.stop());
+        this.setAudioSession('auto');
         this.permissionGranted = true;
         onResult(true);
       }).catch(error => {
         console.error('Microphone permission failed:', error);
+        this.setAudioSession('auto');
         onResult(false);
       });
     } catch (error) {
       console.error('Audio initialization failed:', error);
+      this.setAudioSession('auto');
       onResult(false);
     }
   }
 
-  speak(text, onDone) {
+  async speak(text, onDone, onError) {
     this.stopAll();
     const token = this.token;
     const done = () => {
-      if (this.token === token) onDone();
+      if (this.token === token) {
+        window.mentalMathDiagnostics?.record('playback_done');
+        onDone();
+      }
     };
+    let context;
+    try {
+      await this.waitForRecognitionEnd();
+      if (this.token !== token) return;
+      this.setAudioSession('playback');
+      context = this.audioContext();
+      if (context.state !== 'running') await context.resume();
+      if (this.token !== token) return;
+    } catch (error) {
+      if (this.token !== token) return;
+      console.error('Audio playback preparation failed:', error);
+      window.mentalMathDiagnostics?.record('playback_failure');
+      this.setAudioSession('auto');
+      onError('播题音频准备失败');
+      return;
+    }
     const pack = MentalMathBrowserSpeech.pack;
     const slice = pack && pack.phrases.get(text);
     if (slice) {
       try {
-        const context = this.audioContext();
         const audio = context.createBuffer(1, slice.length / 2, 16000);
         const samples = audio.getChannelData(0);
         const view = new DataView(pack.buffer, pack.dataOffset + slice.offset, slice.length);
@@ -96,13 +156,17 @@ class MentalMathBrowserSpeech {
         source.buffer = audio;
         source.connect(context.destination);
         this.source = source;
+        const startTime = context.currentTime;
+        const endTime = startTime + audio.duration;
         source.onended = () => {
           if (this.token === token) {
             this.source = null;
-            done();
+            source.disconnect();
+            this.finishPlayback(context, endTime, done);
           }
         };
-        source.start();
+        source.start(startTime);
+        window.mentalMathDiagnostics?.record('playback_start', 'pcm');
         return;
       } catch (error) {
         console.error('Voice pack playback failed; using speech synthesis:', error);
@@ -118,21 +182,28 @@ class MentalMathBrowserSpeech {
         done();
       };
       window.speechSynthesis.speak(utterance);
+      window.mentalMathDiagnostics?.record('playback_start', 'synthesis');
     } else {
       console.error('No audio playback or speech synthesis is available');
       setTimeout(done, 500);
     }
   }
 
-  startListening(onListeningReady, onSpeechDetected, onCandidates, onError) {
+  async startListening(onListeningReady, onSpeechDetected, onCandidates, onError) {
     this.stopListening();
     const token = this.token;
+    const listeningToken = this.listeningToken;
+    const current = () => this.token === token && this.listeningToken === listeningToken;
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition || !window.isSecureContext) {
       onError('当前浏览器或连接不支持语音识别，请使用按键模式');
       return;
     }
+    let finishRecognition;
     try {
+      await this.waitForRecognitionEnd();
+      if (!current()) return;
+      this.setAudioSession('play-and-record');
       const recognition = new Recognition();
       window.mentalMathDiagnostics?.observeRecognition(recognition);
       this.recognition = recognition;
@@ -140,10 +211,12 @@ class MentalMathBrowserSpeech {
       recognition.continuous = false;
       recognition.interimResults = true;
       recognition.maxAlternatives = 5;
+      const ended = new Promise(resolve => { finishRecognition = resolve; });
+      this.recognitionEnd = ended;
       let detected = false;
       let delivered = false;
       let ready = false;
-      const active = () => this.token === token && this.recognition === recognition && !delivered;
+      const active = () => current() && this.recognition === recognition && !delivered;
       recognition.onaudiostart = () => {
         if (active() && !ready) {
           ready = true;
@@ -189,13 +262,21 @@ class MentalMathBrowserSpeech {
         }
       };
       recognition.onend = () => {
+        finishRecognition();
+        if (this.recognitionEnd === ended) this.recognitionEnd = null;
         if (active()) {
           this.recognition = null;
+          this.setAudioSession('auto');
           onError('语音识别已结束，可使用按键作答');
         }
       };
       recognition.start();
     } catch (error) {
+      if (!current()) return;
+      if (finishRecognition) {
+        finishRecognition();
+        this.recognitionEnd = null;
+      }
       console.error('Speech recognition could not start:', error);
       this.stopListening();
       onError('语音启动失败，请使用按键模式');
@@ -203,9 +284,11 @@ class MentalMathBrowserSpeech {
   }
 
   stopListening() {
+    this.listeningToken++;
     const recognition = this.recognition;
     this.recognition = null;
     if (recognition) recognition.abort();
+    this.setAudioSession('auto');
   }
 
   stopAll() {

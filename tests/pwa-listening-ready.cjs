@@ -9,7 +9,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
     headless: true
   });
   try {
-    for (const scenario of ["delayed-ready", "denied", "timeout", "exit", "switch", "keypad"]) {
+    for (const scenario of [
+      "delayed-ready", "denied", "timeout", "exit", "switch", "keypad",
+      "audio-handoff", "audio-failure"
+    ]) {
       const context = await browser.newContext({
         ignoreHTTPSErrors: true, serviceWorkers: "block",
         viewport: { width: 390, height: 844 }
@@ -20,7 +23,26 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
             configurable: true,
             value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) }
           });
+          window.testAudioOperations = [];
+          let sessionType = "auto";
+          Object.defineProperty(navigator, "audioSession", {
+            configurable: true,
+            value: {
+              get type() { return sessionType; },
+              set type(value) { sessionType = value; }
+            }
+          });
           window.testRecognizers = [];
+          const sourceStart = AudioBufferSourceNode.prototype.start;
+          AudioBufferSourceNode.prototype.start = function (...args) {
+            window.testAudioOperations.push({
+              event: "playback_start",
+              at: performance.now(),
+              session: sessionType,
+              captureActive: window.testRecognizers.some(item => item.captureActive)
+            });
+            return sourceStart.apply(this, args);
+          };
           window.SpeechRecognition = class extends EventTarget {
             constructor() {
               super();
@@ -33,6 +55,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
               this["on" + type]?.(event);
             }
             start() {
+              this.captureActive = true;
               if (mode === "delayed-ready") {
                 setTimeout(() => {
                   if (this.cancelled) return;
@@ -49,9 +72,29 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
                 }, 2500);
               } else if (mode === "denied") {
                 setTimeout(() => this.emit("error", { error: "not-allowed" }), 100);
+              } else if (mode === "audio-handoff" || mode === "audio-failure") {
+                setTimeout(() => {
+                  if (this.cancelled) return;
+                  this.emit("audiostart");
+                  setTimeout(() => {
+                    if (this.cancelled) return;
+                    this.emit("result", {
+                      resultIndex: 0,
+                      results: [Object.assign([{ transcript: "一" }], { isFinal: true })]
+                    });
+                  }, 100);
+                }, 30);
               }
             }
-            abort() { this.cancelled = true; }
+            abort() {
+              this.cancelled = true;
+              if (mode === "audio-failure") return;
+              setTimeout(() => {
+                this.captureActive = false;
+                window.testAudioOperations.push({ event: "recognition_end", at: performance.now() });
+                this.emit("end");
+              }, mode === "audio-handoff" ? 1400 : 50);
+            }
           };
         }, scenario);
         const page = await context.newPage();
@@ -65,8 +108,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
         });
         const url = new URL(process.env.PWA_TEST_URL || "https://127.0.0.1:8443/");
         url.searchParams.set("speechDebug", "1");
-        await page.goto(url.toString());
-        await fontReady;
+        await Promise.all([page.goto(url.toString()), fontReady]);
         await page.waitForTimeout(300);
         await page.evaluate(() => {
           window.testEvents = [];
@@ -127,6 +169,26 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
             await page.evaluate(() => window.testRecognizers[0].emit("audiostart"));
             await page.waitForTimeout(200);
             assert.equal((await events()).filter(item => item.event === "countdown_start").length, 1);
+          } else if (scenario === "audio-handoff") {
+            await waitEvent("question_settled");
+            await page.waitForFunction(() =>
+              window.testAudioOperations.filter(item => item.event === "playback_start").length >= 2);
+            const operations = await page.evaluate(() => window.testAudioOperations);
+            const playback = operations.filter(item => item.event === "playback_start");
+            assert.equal(playback[1].captureActive, false);
+            assert.equal(playback[1].session, "playback");
+            assert.ok(operations.find(item => item.event === "recognition_end").at <= playback[1].at);
+            assert.ok((await events()).some(item => item.event === "recognition_release_wait"));
+          } else if (scenario === "audio-failure") {
+            await waitEvent("playback_failure");
+            await page.waitForFunction(() =>
+              window.testEvents.filter(item => item.event === "countdown_start").length === 2);
+            assert.equal(await page.evaluate(() => window.testRecognizers.length), 1);
+            assert.equal(await page.evaluate(() =>
+              window.testAudioOperations.filter(item => item.event === "playback_start").length), 1);
+            await page.mouse.click(55, 660);
+            await page.waitForFunction(() =>
+              window.testEvents.filter(item => item.event === "question_settled").length === 2);
           }
         }
         assert.deepEqual(errors, []);

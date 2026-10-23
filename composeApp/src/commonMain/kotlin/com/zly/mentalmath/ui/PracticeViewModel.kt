@@ -208,7 +208,11 @@ class PracticeViewModel(
             )
         }
 
-        speechEngine.speak(nextQ.spokenQuestion) {
+        speechEngine.speak(nextQ.spokenQuestion, onError = { reason ->
+            if (_uiState.value.isPracticing && !currentQuestionSettled && token == activeQuestionToken) {
+                fallbackToKeypad(token, "$reason，已切换按键模式，请看题作答")
+            }
+        }) {
             if (!_uiState.value.isPracticing || currentQuestionSettled || token != activeQuestionToken) return@speak
             if (_uiState.value.config.inputMode == InputMode.VOICE) {
                 startVoiceListeningForQuestion(nextQ, token)
