@@ -35,6 +35,11 @@ jobs:
       - name: Build Compose Web PWA Distribution
         run: ./gradlew :composeApp:jsBrowserDistribution --no-daemon --stacktrace
 
+      - name: Verify PWA runtime and diagnostics
+        run: |
+          node --test tests/runtime-atomic.test.cjs tests/speech-diagnostics.test.cjs
+          python3 -m unittest discover -s tests -p test_serve_pwa.py
+
       - name: Upload PWA Distribution Artifact
         uses: actions/upload-artifact@v4
         with:

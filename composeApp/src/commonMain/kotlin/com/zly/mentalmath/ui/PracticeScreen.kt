@@ -249,6 +249,7 @@ private fun PracticeTopHeader(
         ) {
             val timeText = when (state.phase) {
                 QuestionPhase.SPEAKING -> "🔊 正在语音提问..."
+                QuestionPhase.PREPARING_LISTENING -> "正在准备麦克风（尚未计时）"
                 QuestionPhase.COUNTDOWN -> {
                     val sec = state.remainingMs / 100 / 10f
                     "⏱ 剩余限时：${sec}秒（${state.config.timeLimit.label}档）"

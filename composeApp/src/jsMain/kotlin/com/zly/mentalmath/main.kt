@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.window.ComposeViewport
+import com.zly.mentalmath.speech.SpeechDiagnostics
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.await
@@ -22,6 +23,10 @@ import org.khronos.webgl.DataView
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
+    val diagnostics = window.asDynamic().mentalMathDiagnostics
+    if (diagnostics != null) {
+        SpeechDiagnostics.listener = { event, detail -> diagnostics.record(event, detail) }
+    }
     console.log(">>> [MentalMath] main() started")
     onWasmReady {
         console.log(">>> [MentalMath] onWasmReady fired")

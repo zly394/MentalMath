@@ -1,9 +1,10 @@
-const CACHE_NAME = 'mentalmath-pwa-v4';
+const CACHE_NAME = 'mentalmath-pwa-v7';
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './mentalmath.js',
+  './speech-diagnostics.js',
   './skiko.js',
   './skiko.wasm',
   './app_cn.ttf',
@@ -33,6 +34,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  if (new URL(event.request.url).pathname.startsWith('/__speech_diagnostics/')) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {

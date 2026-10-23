@@ -326,12 +326,14 @@ actual class SpeechEngine actual constructor() {
      */
     actual fun startListening(
         expectedAnswer: Int,
+        onListeningReady: () -> Unit,
         onSpeechDetected: () -> Unit,
         onRecognizedNumber: (number: Int, rawText: String) -> Unit,
         onErrorOrEmpty: (reason: String) -> Unit
     ) {
         isListeningActive.set(false)
         val myListenToken = listenTokenGen.incrementAndGet()
+        onListeningReady()
 
         audioExecutor.execute {
             if (listenTokenGen.get() != myListenToken) return@execute

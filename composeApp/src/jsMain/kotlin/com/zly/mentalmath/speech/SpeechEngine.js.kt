@@ -165,6 +165,7 @@ actual class SpeechEngine actual constructor() {
 
     actual fun startListening(
         expectedAnswer: Int,
+        onListeningReady: () -> Unit,
         onSpeechDetected: () -> Unit,
         onRecognizedNumber: (number: Int, rawText: String) -> Unit,
         onErrorOrEmpty: (reason: String) -> Unit
@@ -180,6 +181,7 @@ actual class SpeechEngine actual constructor() {
 
         try {
             val recognition = js("new (window.SpeechRecognition || window.webkitSpeechRecognition)()")
+            window.asDynamic().mentalMathDiagnostics?.observeRecognition(recognition)
             activeRecognition = recognition
             recognition.lang = "zh-CN"
             recognition.continuous = false
@@ -188,6 +190,14 @@ actual class SpeechEngine actual constructor() {
 
             var speechDetectedTriggered = false
             var delivered = false
+            var listeningReady = false
+
+            recognition.onaudiostart = {
+                if (listenToken == myListenToken && !delivered && !listeningReady) {
+                    listeningReady = true
+                    onListeningReady()
+                }
+            }
 
             recognition.onspeechstart = {
                 if (listenToken == myListenToken && !speechDetectedTriggered && !delivered) {
@@ -227,14 +237,29 @@ actual class SpeechEngine actual constructor() {
                 }
             }
 
-            recognition.onerror = { _: dynamic ->
+            recognition.onerror = { event: dynamic ->
                 if (listenToken == myListenToken && !delivered) {
-                    onErrorOrEmpty("未听清答案")
+                    val reason = when (event.error as? String) {
+                        "not-allowed", "service-not-allowed" -> "未授予麦克风或语音识别权限"
+                        "audio-capture" -> "无法使用麦克风"
+                        "network" -> "语音识别服务连接失败"
+                        else -> "未听清答案"
+                    }
+                    stopListeningInternal()
+                    onErrorOrEmpty(reason)
+                }
+            }
+
+            recognition.onend = {
+                if (listenToken == myListenToken && !delivered) {
+                    stopListeningInternal()
+                    onErrorOrEmpty(if (listeningReady) "未听清答案" else "语音收音未能启动")
                 }
             }
 
             recognition.start()
         } catch (_: Throwable) {
+            stopListeningInternal()
             onErrorOrEmpty("语音启动失败，请使用按键模式")
         }
     }

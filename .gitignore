@@ -36,6 +36,7 @@ iosApp/Pods/
 iosApp/.build/
 
 # OS & Temp files
+__pycache__/
 .DS_Store
 Thumbs.db
 *.log

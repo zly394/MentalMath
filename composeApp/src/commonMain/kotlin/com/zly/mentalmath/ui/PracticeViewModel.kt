@@ -10,6 +10,7 @@ import com.zly.mentalmath.model.PracticeConfig
 import com.zly.mentalmath.model.Question
 import com.zly.mentalmath.model.QuestionMode
 import com.zly.mentalmath.model.TimeLimitOption
+import com.zly.mentalmath.speech.SpeechDiagnostics
 import com.zly.mentalmath.speech.SpeechEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
  */
 enum class QuestionPhase {
     SPEAKING,         // 正在语音播报题目（纯算式，不带“等于”）
+    PREPARING_LISTENING,
     COUNTDOWN,        // 正在限时抢答读秒
     SPEECH_DETECTED,  // 已检测到孩子开口，锁表等待系统语音识别文本返回
     FEEDBACK,         // 单题正误/超时视觉反馈展示
@@ -110,12 +112,16 @@ class PracticeViewModel(
             )
         }
         val state = _uiState.value
-        if (state.isPracticing && state.phase == QuestionPhase.COUNTDOWN) {
+        if (state.isPracticing && (state.phase == QuestionPhase.COUNTDOWN ||
+                state.phase == QuestionPhase.PREPARING_LISTENING)) {
             val q = state.currentQuestion ?: return
             if (mode == InputMode.VOICE) {
                 startVoiceListeningForQuestion(q, activeQuestionToken)
             } else {
                 speechEngine.stopAll()
+                if (state.phase == QuestionPhase.PREPARING_LISTENING) {
+                    beginCountdown(activeQuestionToken)
+                }
             }
         }
     }
@@ -149,6 +155,7 @@ class PracticeViewModel(
     }
 
     private fun launchSessionInternal(config: PracticeConfig, initialHint: String) {
+        SpeechDiagnostics.record("session_start", config.inputMode.name)
         timerJob?.cancel()
         speechEngine.stopAll()
         _uiState.value = PracticeUiState(
@@ -165,6 +172,7 @@ class PracticeViewModel(
      * 退出当前训练返回首页（彻底释放常驻麦克风硬件流）
      */
     fun stopSession() {
+        SpeechDiagnostics.record("session_stop")
         activeQuestionToken++
         timerJob?.cancel()
         speechEngine.release()
@@ -175,10 +183,12 @@ class PracticeViewModel(
      * 加载第 [index] 题并极速播报纯算式（如 "六加二"，不带“等于”）
      */
     private fun loadAndSpeakQuestion(index: Int, lastQuestion: Question?) {
+        SpeechDiagnostics.record("question_start", index.toString())
         val token = ++activeQuestionToken
         timerJob?.cancel()
         speechEngine.stopAll()
         currentQuestionSettled = false
+        questionStartTimeMs = 0L
 
         val config = _uiState.value.config
         val nextQ = QuestionGenerator.nextQuestion(
@@ -200,15 +210,20 @@ class PracticeViewModel(
 
         speechEngine.speak(nextQ.spokenQuestion) {
             if (!_uiState.value.isPracticing || currentQuestionSettled || token != activeQuestionToken) return@speak
-            beginCountdown(nextQ, token)
+            if (_uiState.value.config.inputMode == InputMode.VOICE) {
+                startVoiceListeningForQuestion(nextQ, token)
+            } else {
+                beginCountdown(token)
+            }
         }
     }
 
     /**
-     * 题目播报完毕，立即启动毫秒级倒计时与语音监听
+     * 按键模式播报后计时，Web 语音模式实际开始收音后计时。
      */
-    private fun beginCountdown(question: Question, token: Long) {
+    private fun beginCountdown(token: Long, hint: String? = null) {
         if (token != activeQuestionToken || currentQuestionSettled) return
+        SpeechDiagnostics.record("countdown_start")
         val limitMs = _uiState.value.config.timeLimit.millis
         questionStartTimeMs = PlatformStorage.currentTimeMillis()
 
@@ -217,16 +232,12 @@ class PracticeViewModel(
                 phase = QuestionPhase.COUNTDOWN,
                 remainingMs = limitMs,
                 lockedElapsedMs = null,
-                voiceHint = if (it.config.inputMode == InputMode.VOICE) {
+                voiceHint = hint ?: if (it.config.inputMode == InputMode.VOICE) {
                     "请直接喊出答案 (0~10)"
                 } else {
                     "请点击数字键盘作答"
                 }
             )
-        }
-
-        if (_uiState.value.config.inputMode == InputMode.VOICE) {
-            startVoiceListeningForQuestion(question, token)
         }
 
         timerJob?.cancel()
@@ -242,6 +253,7 @@ class PracticeViewModel(
                     val remain = (limitMs - elapsed).coerceAtLeast(0L)
                     _uiState.update { it.copy(remainingMs = remain) }
                     if (remain <= 0L) {
+                        SpeechDiagnostics.record("answer_timeout")
                         settleQuestion(
                             userAnswer = null,
                             outcome = AnswerOutcome.TIMEOUT,
@@ -253,6 +265,7 @@ class PracticeViewModel(
                     val lockedAt = state.lockedElapsedMs ?: limitMs
                     val graceElapsed = now - (questionStartTimeMs + lockedAt)
                     if (graceElapsed > 1200L) {
+                        SpeechDiagnostics.record("recognition_wait_timeout")
                         settleQuestion(
                             userAnswer = null,
                             outcome = AnswerOutcome.TIMEOUT,
@@ -266,10 +279,38 @@ class PracticeViewModel(
     }
 
     private fun startVoiceListeningForQuestion(question: Question, token: Long) {
+        val waitingForReady = _uiState.value.phase != QuestionPhase.COUNTDOWN
+        if (waitingForReady) {
+            _uiState.update {
+                it.copy(
+                    phase = QuestionPhase.PREPARING_LISTENING,
+                    voiceHint = "正在准备麦克风，请允许语音权限；准备完成后开始计时"
+                )
+            }
+            SpeechDiagnostics.record("listening_preparing")
+            timerJob?.cancel()
+            timerJob = scope.launch {
+                delay(30_000L)
+                if (token == activeQuestionToken && !currentQuestionSettled &&
+                    _uiState.value.phase == QuestionPhase.PREPARING_LISTENING) {
+                    SpeechDiagnostics.record("listening_start_timeout")
+                    fallbackToKeypad(token, "麦克风准备超时，已切换按键模式")
+                }
+            }
+        }
         speechEngine.startListening(
             expectedAnswer = question.answer,
+            onListeningReady = {
+                if (token == activeQuestionToken && !currentQuestionSettled &&
+                    _uiState.value.phase == QuestionPhase.PREPARING_LISTENING &&
+                    _uiState.value.config.inputMode == InputMode.VOICE) {
+                    SpeechDiagnostics.record("listening_ready")
+                    beginCountdown(token)
+                }
+            },
             onSpeechDetected = {
                 if (token == activeQuestionToken && !currentQuestionSettled && _uiState.value.phase == QuestionPhase.COUNTDOWN) {
+                    SpeechDiagnostics.record("voice_detected")
                     val now = PlatformStorage.currentTimeMillis()
                     val locked = (now - questionStartTimeMs)
                         .coerceIn(100L, _uiState.value.config.timeLimit.millis)
@@ -284,6 +325,7 @@ class PracticeViewModel(
             },
             onRecognizedNumber = { number, rawText ->
                 if (token == activeQuestionToken && !currentQuestionSettled) {
+                    SpeechDiagnostics.record("number_parsed")
                     val elapsed = _uiState.value.lockedElapsedMs
                         ?: (PlatformStorage.currentTimeMillis() - questionStartTimeMs)
                             .coerceIn(100L, _uiState.value.config.timeLimit.millis)
@@ -302,12 +344,23 @@ class PracticeViewModel(
             },
             onErrorOrEmpty = { reason ->
                 if (token == activeQuestionToken && !currentQuestionSettled) {
-                    _uiState.update {
-                        it.copy(voiceHint = "$reason（可点下方按键作答）")
+                    SpeechDiagnostics.record("recognition_failure")
+                    if (_uiState.value.phase == QuestionPhase.PREPARING_LISTENING) {
+                        fallbackToKeypad(token, "$reason，已切换按键模式")
+                    } else {
+                        _uiState.update {
+                            it.copy(voiceHint = "$reason（可点下方按键作答）")
+                        }
                     }
                 }
             }
         )
+    }
+
+    private fun fallbackToKeypad(token: Long, reason: String) {
+        speechEngine.stopAll()
+        _uiState.update { it.copy(config = it.config.copy(inputMode = InputMode.KEYPAD)) }
+        beginCountdown(token, reason)
     }
 
     /**
@@ -319,6 +372,7 @@ class PracticeViewModel(
         if (currentQuestionSettled) return
         if (state.phase != QuestionPhase.COUNTDOWN &&
             state.phase != QuestionPhase.SPEECH_DETECTED &&
+            state.phase != QuestionPhase.PREPARING_LISTENING &&
             state.phase != QuestionPhase.SPEAKING
         ) {
             return
@@ -351,6 +405,7 @@ class PracticeViewModel(
         elapsedMs: Long
     ) {
         if (currentQuestionSettled) return
+        SpeechDiagnostics.record("question_settled", outcome.name)
         currentQuestionSettled = true
         activeQuestionToken++
         timerJob?.cancel()

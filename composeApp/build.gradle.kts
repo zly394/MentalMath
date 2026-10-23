@@ -111,10 +111,41 @@ tasks.matching { it.name == "jsTestPackageJson" }.configureEach {
     }
 }
 
-// 自动化修补 Kotlin 2.x JS 编译器对 Compose Runtime 内部 AtomicReference/AtomicInt 的 Lowering 缺陷
+// 修补当前 Kotlin/Compose JS 组合的原子操作生成缺陷，避免初始化死循环和状态通知丢失。
 tasks.matching { it.name.startsWith("compile") && it.name.endsWith("ExecutableKotlinJs") }.configureEach {
     doLast {
         val buildDir = project.layout.buildDirectory.get().asFile
+        buildDir.walkTopDown().filter { it.name == "compose-multiplatform-core-compose-ui-ui.js" }.forEach { uiJs ->
+            var content = uiJs.readText(Charsets.UTF_8)
+            val start = content.indexOf("function GlobalSnapshotManager\$ensureStarted\$lambda(")
+            val end = content.indexOf("var GlobalSnapshotManager_instance;", start)
+            check(start >= 0 && end > start) {
+                "Compose GlobalSnapshotManager changed; review the JS atomic compatibility patch"
+            }
+            var manager = content.substring(start, end)
+            val startedField = Regex(
+                "function GlobalSnapshotManager\\(\\)\\s*\\{\\s*this\\.([\\w$]+) = 0;"
+            ).find(manager)?.groupValues?.get(1)
+            check(startedField != null) { "Cannot locate GlobalSnapshotManager startup flag" }
+
+            // 仅恢复丢失的 CAS 读取，保留原有通知合并、协程和帧调度流程。
+            val notificationRead = Regex(
+                "var ([\\w$]+);\\s*GlobalSnapshotManager_instance\\.([\\w$]+);\\s*if \\(equals\\(\\1, 0\\)\\)"
+            )
+            manager = notificationRead.replace(manager) { match ->
+                "var ${match.groupValues[1]} = GlobalSnapshotManager_instance.${match.groupValues[2]};\n" +
+                    "        if (equals(${match.groupValues[1]}, 0))"
+            }
+            val startupRead = Regex("var ([\\w$]+);\\s*if \\(equals\\(\\1, 0\\)\\)")
+            manager = startupRead.replace(manager) { match ->
+                "var ${match.groupValues[1]} = this.$startedField;\n" +
+                    "      if (equals(${match.groupValues[1]}, 0))"
+            }
+            check(!Regex("var ([\\w$]+);\\s*(?:GlobalSnapshotManager_instance\\.[\\w$]+;\\s*)?if \\(equals\\(\\1, 0\\)\\)")
+                .containsMatchIn(manager)) { "Unpatched GlobalSnapshotManager atomic read" }
+            content = content.substring(0, start) + manager + content.substring(end)
+            uiJs.writeText(content, Charsets.UTF_8)
+        }
         buildDir.walkTopDown().filter { it.name == "compose-multiplatform-core-compose-runtime-runtime.js" }.forEach { runtimeJs ->
             var content = runtimeJs.readText(Charsets.UTF_8)
             val d = "$"
@@ -149,10 +180,37 @@ tasks.matching { it.name.startsWith("compile") && it.name.endsWith("ExecutableKo
             }
 
             // 3. 构建无缺陷的纯正 JS 类实现
+            fun hasCompareAndSetCall(method: String): Boolean {
+                val calls = Regex("\\." + Regex.escape(method) + "\\s*\\(").findAll(content)
+                return calls.any { call ->
+                    var depth = 1
+                    var commas = 0
+                    var quote: Char? = null
+                    var escaped = false
+                    var pos = call.range.last + 1
+                    while (pos < content.length && depth > 0) {
+                        val char = content[pos++]
+                        if (quote != null) {
+                            if (escaped) escaped = false
+                            else if (char == '\\') escaped = true
+                            else if (char == quote) quote = null
+                        } else {
+                            when (char) {
+                                '\'', '"' -> quote = char
+                                '(', '[', '{' -> depth++
+                                ')', ']', '}' -> depth--
+                                ',' -> if (depth == 1) commas++
+                            }
+                        }
+                    }
+                    commas == 1
+                }
+            }
+
             val sb = StringBuilder()
             sb.append("function AtomicReference(value) {\n    this.").append(refProp).append(" = value;\n  }\n")
             for (m in refMethods) {
-                val isCas = Regex("\\." + Regex.escape(m) + "\\s*\\([^,()]+,[^,()]+\\)").containsMatchIn(content)
+                val isCas = hasCompareAndSetCall(m)
                 val isZeroArg = Regex("\\." + Regex.escape(m) + "\\s*\\(\\s*\\)").containsMatchIn(content)
                 if (isZeroArg) {
                     sb.append("  protoOf(AtomicReference).").append(m).append(" = function () { return this.").append(refProp).append("; };\n")
@@ -165,7 +223,7 @@ tasks.matching { it.name.startsWith("compile") && it.name.endsWith("ExecutableKo
 
             sb.append("  function AtomicInt(value) {\n    this.").append(intProp).append(" = value;\n  }\n")
             for (m in intMethods) {
-                val isCas = Regex("\\." + Regex.escape(m) + "\\s*\\([^,()]+,[^,()]+\\)").containsMatchIn(content)
+                val isCas = hasCompareAndSetCall(m)
                 val isZeroArg = Regex("\\." + Regex.escape(m) + "\\s*\\(\\s*\\)").containsMatchIn(content)
                 val isAmount = content.contains("protoOf(AtomicInt)." + m + " = function (amount)") || Regex("\\." + Regex.escape(m) + "\\s*\\(\\s*amount\\s*\\)").containsMatchIn(content)
                 if (isZeroArg) {
