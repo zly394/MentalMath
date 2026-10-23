@@ -112,6 +112,9 @@ class PracticeViewModel(
             )
         }
         val state = _uiState.value
+        speechEngine.setVoiceMode(
+            state.isPracticing && state.phase != QuestionPhase.SESSION_SUMMARY && mode == InputMode.VOICE
+        )
         if (state.isPracticing && (state.phase == QuestionPhase.COUNTDOWN ||
                 state.phase == QuestionPhase.PREPARING_LISTENING)) {
             val q = state.currentQuestion ?: return
@@ -158,6 +161,7 @@ class PracticeViewModel(
         SpeechDiagnostics.record("session_start", config.inputMode.name)
         timerJob?.cancel()
         speechEngine.stopAll()
+        speechEngine.setVoiceMode(config.inputMode == InputMode.VOICE)
         _uiState.value = PracticeUiState(
             config = config,
             isPracticing = true,
@@ -267,8 +271,9 @@ class PracticeViewModel(
                     }
                 } else if (state.phase == QuestionPhase.SPEECH_DETECTED) {
                     val lockedAt = state.lockedElapsedMs ?: limitMs
-                    val graceElapsed = now - (questionStartTimeMs + lockedAt)
-                    if (graceElapsed > 1200L) {
+                    // 中间结果不能缩短原限时；临近截止开口仍保留识别缓冲。
+                    val recognitionDeadlineMs = questionStartTimeMs + maxOf(limitMs, lockedAt + 1200L)
+                    if (now >= recognitionDeadlineMs) {
                         SpeechDiagnostics.record("recognition_wait_timeout")
                         settleQuestion(
                             userAnswer = null,
@@ -288,17 +293,17 @@ class PracticeViewModel(
             _uiState.update {
                 it.copy(
                     phase = QuestionPhase.PREPARING_LISTENING,
-                    voiceHint = "正在准备麦克风，请允许语音权限；准备完成后开始计时"
+                    voiceHint = "正在准备识别与麦克风；首次离线模型加载可能较久，准备完成后才计时"
                 )
             }
             SpeechDiagnostics.record("listening_preparing")
             timerJob?.cancel()
             timerJob = scope.launch {
-                delay(30_000L)
+                delay(120_000L)
                 if (token == activeQuestionToken && !currentQuestionSettled &&
                     _uiState.value.phase == QuestionPhase.PREPARING_LISTENING) {
                     SpeechDiagnostics.record("listening_start_timeout")
-                    fallbackToKeypad(token, "麦克风准备超时，已切换按键模式")
+                    fallbackToKeypad(token, "语音识别准备超时，已切换按键模式")
                 }
             }
         }
@@ -363,6 +368,7 @@ class PracticeViewModel(
 
     private fun fallbackToKeypad(token: Long, reason: String) {
         speechEngine.stopAll()
+        speechEngine.setVoiceMode(false)
         _uiState.update { it.copy(config = it.config.copy(inputMode = InputMode.KEYPAD)) }
         beginCountdown(token, reason)
     }

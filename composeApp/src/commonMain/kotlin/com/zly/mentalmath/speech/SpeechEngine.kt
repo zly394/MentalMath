@@ -16,6 +16,12 @@ expect class SpeechEngine() {
     fun requestRecordPermission(onResult: (Boolean) -> Unit)
 
     /**
+     * Web 在整轮语音训练中保持录放音会话，避免逐题切换；原生平台保持现有音频配置。
+     * 不会打开麦克风；退出、结算或切换按键时恢复默认会话。
+     */
+    fun setVoiceMode(enabled: Boolean)
+
+    /**
      * 极速播报文本（如 "3加5"），播报完成（或模拟器无 TTS 时自动兜底）回调 [onDone]。
      * Web 等待上一轮识别结束后播报，音频准备失败时通过 [onError] 提示并回退按键。
      */
@@ -25,7 +31,7 @@ expect class SpeechEngine() {
      * 开启单题流式语音抢答监听
      *
      * @param expectedAnswer 当前标准答案（用于同音字消歧）
-     * @param onListeningReady 可以开始答题计时；Web 等待实际收音，其它平台保持原有启动时序
+     * @param onListeningReady 可以开始答题计时；Web 与 iOS 等待实际收音，Android 等待识别服务启动
      * @param onSpeechDetected 当检测到孩子开口发声瞬间回调（立即锁表暂停超时倒计时）
      * @param onRecognizedNumber 当流式或最终结果解析出 0~10 数字时立即回调 (数字, 原始文本)
      * @param onErrorOrEmpty 当识别结束仍未解析出有效数字或引擎不可用时回调提示信息

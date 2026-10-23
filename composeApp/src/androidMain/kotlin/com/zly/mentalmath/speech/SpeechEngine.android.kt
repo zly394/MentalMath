@@ -237,6 +237,8 @@ actual class SpeechEngine actual constructor() {
         )
     }
 
+    actual fun setVoiceMode(enabled: Boolean) = Unit
+
     /**
      * 100% 离线整句神经网络女声（晓晓）零拷贝播报
      * 播报同时在后台预构建本题全新的 Recognizer，播报完毕即刻 0 等待开启麦克风

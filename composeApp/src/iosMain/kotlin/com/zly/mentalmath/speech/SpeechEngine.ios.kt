@@ -2,7 +2,11 @@ package com.zly.mentalmath.speech
 
 import com.zly.mentalmath.domain.NumberVoiceParser
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
 import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioPlayer
@@ -10,6 +14,7 @@ import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
 import platform.AVFAudio.AVAudioSessionCategoryOptionDefaultToSpeaker
 import platform.AVFAudio.AVAudioSessionModeMeasurement
+import platform.AVFAudio.AVAudioSessionRecordPermissionGranted
 import platform.AVFAudio.AVSpeechBoundary
 import platform.AVFAudio.AVSpeechSynthesisVoice
 import platform.AVFAudio.AVSpeechSynthesizer
@@ -18,6 +23,8 @@ import platform.AVFAudio.setActive
 import platform.Foundation.NSBundle
 import platform.Foundation.NSData
 import platform.Foundation.NSLocale
+import platform.Foundation.NSError
+import platform.Foundation.NSLog
 import platform.Foundation.NSTimer
 import platform.Foundation.dataWithBytes
 import platform.Foundation.dataWithContentsOfFile
@@ -26,6 +33,8 @@ import platform.Speech.SFSpeechRecognitionTask
 import platform.Speech.SFSpeechRecognizer
 import platform.Speech.SFSpeechRecognizerAuthorizationStatus
 import platform.posix.memcpy
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 @OptIn(ExperimentalForeignApi::class)
 actual class SpeechEngine actual constructor() {
@@ -135,6 +144,7 @@ actual class SpeechEngine actual constructor() {
     private var activePlayer: AVAudioPlayer? = null
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest? = null
     private var recognitionTask: SFSpeechRecognitionTask? = null
+    private var inputTapInstalled = false
     private var speakToken: Long = 0L
     private var listenToken: Long = 0L
 
@@ -144,7 +154,8 @@ actual class SpeechEngine actual constructor() {
 
     actual fun hasRecordPermission(): Boolean {
         return SFSpeechRecognizer.authorizationStatus() ==
-            SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusAuthorized
+            SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusAuthorized &&
+            AVAudioSession.sharedInstance().recordPermission == AVAudioSessionRecordPermissionGranted
     }
 
     actual fun requestRecordPermission(onResult: (Boolean) -> Unit) {
@@ -152,10 +163,14 @@ actual class SpeechEngine actual constructor() {
             val granted = status ==
                 SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusAuthorized
             AVAudioSession.sharedInstance().requestRecordPermission { micGranted ->
-                onResult(granted && micGranted)
+                dispatch_async(dispatch_get_main_queue()) {
+                    onResult(granted && micGranted)
+                }
             }
         }
     }
+
+    actual fun setVoiceMode(enabled: Boolean) = Unit
 
     actual fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit) {
         stopAll()
@@ -222,25 +237,43 @@ actual class SpeechEngine actual constructor() {
     ) {
         stopListeningInternal()
         val myListenToken = ++listenToken
-        onListeningReady()
 
         val recognizer = speechRecognizer
-        if (recognizer == null || !recognizer.isAvailable()) {
-            onErrorOrEmpty("当前设备离线语音识别不可用，请切换『听音按键』模式")
+        if (!hasRecordPermission()) {
+            onErrorOrEmpty("未授予麦克风或语音识别权限，请切换按键模式")
+            return
+        }
+        if (recognizer == null || !recognizer.supportsOnDeviceRecognition) {
+            onErrorOrEmpty("当前设备不支持中文端侧识别，不会使用联网识别，请切换按键模式")
+            return
+        }
+        if (!recognizer.isAvailable()) {
+            onErrorOrEmpty("中文端侧识别暂不可用，请检查系统语音资源或切换按键模式")
             return
         }
 
         var hasDeliveredRecognition = false
         var hasTriggeredSpeechDetected = false
+        var hasDeliveredReady = false
 
         val audioSession = AVAudioSession.sharedInstance()
-        audioSession.setCategory(
-            AVAudioSessionCategoryPlayAndRecord,
-            mode = AVAudioSessionModeMeasurement,
-            options = AVAudioSessionCategoryOptionDefaultToSpeaker,
-            error = null
-        )
-        audioSession.setActive(true, error = null)
+        val sessionError = memScoped {
+            val error = alloc<ObjCObjectVar<NSError?>>()
+            error.value = null
+            if (!audioSession.setCategory(
+                    AVAudioSessionCategoryPlayAndRecord,
+                    mode = AVAudioSessionModeMeasurement,
+                    options = AVAudioSessionCategoryOptionDefaultToSpeaker,
+                    error = error.ptr
+                ) || !audioSession.setActive(true, error = error.ptr)) {
+                error.value?.localizedDescription ?: "音频会话启动失败"
+            } else null
+        }
+        if (sessionError != null) {
+            NSLog("Offline speech audio session failed: %@", sessionError)
+            onErrorOrEmpty("离线收音启动失败：$sessionError")
+            return
+        }
 
         val request = SFSpeechAudioBufferRecognitionRequest().apply {
             shouldReportPartialResults = true
@@ -251,48 +284,74 @@ actual class SpeechEngine actual constructor() {
 
         val inputNode = audioEngine.inputNode
         val recordingFormat = inputNode.outputFormatForBus(0u)
-        inputNode.removeTapOnBus(0u)
+        if (recordingFormat.sampleRate <= 0.0 || recordingFormat.channelCount == 0u) {
+            recognitionRequest = null
+            onErrorOrEmpty("麦克风音频格式不可用，请切换按键模式")
+            return
+        }
         inputNode.installTapOnBus(
             bus = 0u,
             bufferSize = 512u,
             format = recordingFormat
         ) { buffer, _ ->
             if (buffer != null && listenToken == myListenToken) {
+                dispatch_async(dispatch_get_main_queue()) {
+                    if (listenToken == myListenToken && !hasDeliveredReady) {
+                        hasDeliveredReady = true
+                        onListeningReady()
+                    }
+                }
                 request.appendAudioPCMBuffer(buffer)
+            }
+        }
+        inputTapInstalled = true
+
+        recognitionTask = recognizer.recognitionTaskWithRequest(request) { result, error ->
+            dispatch_async(dispatch_get_main_queue()) {
+                if (hasDeliveredRecognition || listenToken != myListenToken) return@dispatch_async
+                if (result != null) {
+                    val rawString = result.bestTranscription.formattedString
+                    if (rawString.isNotBlank()) {
+                        if (!hasTriggeredSpeechDetected) {
+                            hasTriggeredSpeechDetected = true
+                            onSpeechDetected()
+                            if (listenToken != myListenToken) return@dispatch_async
+                        }
+                        val parsed = NumberVoiceParser.parseSpokenNumber(
+                            listOf(rawString),
+                            expectedAnswer
+                        )
+                        if (parsed != null) {
+                            hasDeliveredRecognition = true
+                            stopListeningInternal()
+                            onRecognizedNumber(parsed, rawString)
+                            return@dispatch_async
+                        }
+                    }
+                    if (result.isFinal() && !hasDeliveredRecognition) {
+                        stopListeningInternal()
+                        onErrorOrEmpty("未匹配到 0~10 数字")
+                    }
+                } else if (error != null && !hasDeliveredRecognition) {
+                    NSLog("On-device speech recognition failed: %@", error.localizedDescription)
+                    stopListeningInternal()
+                    onErrorOrEmpty("端侧识别失败，请检查系统语音资源或使用按键作答")
+                }
             }
         }
 
         audioEngine.prepare()
-        audioEngine.startAndReturnError(null)
-
-        recognitionTask = recognizer.recognitionTaskWithRequest(request) { result, error ->
-            if (hasDeliveredRecognition || listenToken != myListenToken) return@recognitionTaskWithRequest
-            if (result != null) {
-                val rawString = result.bestTranscription.formattedString
-                if (rawString.isNotBlank()) {
-                    if (!hasTriggeredSpeechDetected) {
-                        hasTriggeredSpeechDetected = true
-                        onSpeechDetected()
-                    }
-                    val parsed = NumberVoiceParser.parseSpokenNumber(
-                        listOf(rawString),
-                        expectedAnswer
-                    )
-                    if (parsed != null) {
-                        hasDeliveredRecognition = true
-                        stopListeningInternal()
-                        onRecognizedNumber(parsed, rawString)
-                        return@recognitionTaskWithRequest
-                    }
-                }
-                if (result.isFinal() && !hasDeliveredRecognition) {
-                    stopListeningInternal()
-                    onErrorOrEmpty("未匹配到 0~10 数字")
-                }
-            } else if (error != null && !hasDeliveredRecognition) {
-                stopListeningInternal()
-                onErrorOrEmpty("未听清答案")
-            }
+        val captureError = memScoped {
+            val error = alloc<ObjCObjectVar<NSError?>>()
+            error.value = null
+            if (!audioEngine.startAndReturnError(error.ptr)) {
+                error.value?.localizedDescription ?: "麦克风启动失败"
+            } else null
+        }
+        if (captureError != null) {
+            NSLog("Offline speech capture failed: %@", captureError)
+            stopListeningInternal()
+            onErrorOrEmpty("麦克风启动失败：$captureError")
         }
     }
 
@@ -300,7 +359,10 @@ actual class SpeechEngine actual constructor() {
         listenToken++
         if (audioEngine.isRunning()) {
             audioEngine.stop()
+        }
+        if (inputTapInstalled) {
             audioEngine.inputNode.removeTapOnBus(0u)
+            inputTapInstalled = false
         }
         recognitionRequest?.endAudio()
         recognitionRequest = null

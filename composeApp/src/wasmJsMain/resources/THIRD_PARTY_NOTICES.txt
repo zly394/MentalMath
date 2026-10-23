@@ -1,0 +1,21 @@
+Offline speech recognition
+
+vosk-browser 0.0.8
+Author: Ciaran O'Reilly
+Source: https://github.com/ccoreilly/vosk-browser
+License: Apache License 2.0 (LICENSE-APACHE-2.0.txt)
+
+Vosk API
+Source: https://github.com/alphacep/vosk-api
+License: Apache License 2.0 (LICENSE-APACHE-2.0.txt)
+
+vosk-model-small-cn-0.22
+Publisher: Alpha Cephei
+Source: https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip
+License listing: https://alphacephei.com/vosk/models
+License: Apache License 2.0 (LICENSE-APACHE-2.0.txt)
+The existing Android model is repackaged as a tar.gz archive for the browser.
+Its 14 original files match the official model; the Android uuid is additional.
+No acoustic or language model files are modified.
+
+Other JavaScript dependency notices are in mentalmath.js.LICENSE.txt.

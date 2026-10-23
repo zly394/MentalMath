@@ -2,9 +2,16 @@ package com.zly.mentalmath.speech
 
 import com.zly.mentalmath.domain.NumberVoiceParser
 
+@JsModule("vosk-browser")
+private external object VoskModule : JsAny
+
+private fun installOfflineVosk(module: JsAny): Unit =
+    js("globalThis.mentalMathVosk = module")
+
 private external class MentalMathBrowserSpeech : JsAny {
     fun hasRecordPermission(): Boolean
     fun requestRecordPermission(onResult: (Boolean) -> Unit)
+    fun setVoiceMode(enabled: Boolean)
     fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit)
     fun startListening(
         onListeningReady: () -> Unit,
@@ -13,15 +20,24 @@ private external class MentalMathBrowserSpeech : JsAny {
         onError: (String) -> Unit
     )
     fun stopAll()
+    fun release()
 }
 
 actual class SpeechEngine actual constructor() {
+    init {
+        installOfflineVosk(VoskModule)
+    }
+
     private val browser = MentalMathBrowserSpeech()
 
     actual fun hasRecordPermission(): Boolean = browser.hasRecordPermission()
 
     actual fun requestRecordPermission(onResult: (Boolean) -> Unit) {
         browser.requestRecordPermission(onResult)
+    }
+
+    actual fun setVoiceMode(enabled: Boolean) {
+        browser.setVoiceMode(enabled)
     }
 
     actual fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit) {
@@ -57,6 +73,6 @@ actual class SpeechEngine actual constructor() {
     }
 
     actual fun release() {
-        browser.stopAll()
+        browser.release()
     }
 }

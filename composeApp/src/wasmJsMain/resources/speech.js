@@ -9,6 +9,7 @@ class MentalMathBrowserSpeech {
     this.recognition = null;
     this.recognitionEnd = null;
     this.listeningToken = 0;
+    this.voiceMode = false;
     this.permissionGranted = false;
     if (!MentalMathBrowserSpeech.loading) {
       MentalMathBrowserSpeech.loading = this.loadPack().catch(error => {
@@ -49,11 +50,18 @@ class MentalMathBrowserSpeech {
   setAudioSession(type) {
     if (!navigator.audioSession) return;
     try {
+      if (navigator.audioSession.type === type) return;
       navigator.audioSession.type = type;
       window.mentalMathDiagnostics?.record('audio_session', type);
     } catch (error) {
       console.warn('Audio session selection is unavailable:', error);
     }
+  }
+
+  setVoiceMode(enabled) {
+    this.voiceMode = enabled;
+    if (!enabled) this.stopListening();
+    this.setAudioSession(enabled ? 'play-and-record' : 'auto');
   }
 
   async waitForRecognitionEnd() {
@@ -79,7 +87,7 @@ class MentalMathBrowserSpeech {
     if (delayMs > 0) {
       setTimeout(done, delayMs);
     } else {
-      done();
+      return done();
     }
   }
 
@@ -87,10 +95,16 @@ class MentalMathBrowserSpeech {
     return this.permissionGranted;
   }
 
+  recognitionType() {
+    return new URLSearchParams(window.location.search).get('speechEngine') === 'browser'
+      ? window.SpeechRecognition || window.webkitSpeechRecognition
+      : globalThis.MentalMathOfflineRecognition;
+  }
+
   requestRecordPermission(onResult) {
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const Recognition = this.recognitionType();
     if (!window.isSecureContext || !navigator.mediaDevices || !Recognition) {
-      console.warn('Voice answers require HTTPS (or localhost) and SpeechRecognition');
+      console.warn('Voice answers require HTTPS (or localhost) and a recognition engine');
       onResult(false);
       return;
     }
@@ -102,17 +116,17 @@ class MentalMathBrowserSpeech {
       }
       navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
         stream.getTracks().forEach(track => track.stop());
-        this.setAudioSession('auto');
+        this.setAudioSession(this.voiceMode ? 'play-and-record' : 'auto');
         this.permissionGranted = true;
         onResult(true);
       }).catch(error => {
         console.error('Microphone permission failed:', error);
-        this.setAudioSession('auto');
+        this.setAudioSession(this.voiceMode ? 'play-and-record' : 'auto');
         onResult(false);
       });
     } catch (error) {
       console.error('Audio initialization failed:', error);
-      this.setAudioSession('auto');
+      this.setAudioSession(this.voiceMode ? 'play-and-record' : 'auto');
       onResult(false);
     }
   }
@@ -130,7 +144,7 @@ class MentalMathBrowserSpeech {
     try {
       await this.waitForRecognitionEnd();
       if (this.token !== token) return;
-      this.setAudioSession('playback');
+      this.setAudioSession(this.voiceMode ? 'play-and-record' : 'playback');
       context = this.audioContext();
       if (context.state !== 'running') await context.resume();
       if (this.token !== token) return;
@@ -138,7 +152,6 @@ class MentalMathBrowserSpeech {
       if (this.token !== token) return;
       console.error('Audio playback preparation failed:', error);
       window.mentalMathDiagnostics?.record('playback_failure');
-      this.setAudioSession('auto');
       onError('播题音频准备失败');
       return;
     }
@@ -162,7 +175,7 @@ class MentalMathBrowserSpeech {
           if (this.token === token) {
             this.source = null;
             source.disconnect();
-            this.finishPlayback(context, endTime, done);
+            return this.finishPlayback(context, endTime, done);
           }
         };
         source.start(startTime);
@@ -194,7 +207,7 @@ class MentalMathBrowserSpeech {
     const token = this.token;
     const listeningToken = this.listeningToken;
     const current = () => this.token === token && this.listeningToken === listeningToken;
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const Recognition = this.recognitionType();
     if (!Recognition || !window.isSecureContext) {
       onError('当前浏览器或连接不支持语音识别，请使用按键模式');
       return;
@@ -203,7 +216,7 @@ class MentalMathBrowserSpeech {
     try {
       await this.waitForRecognitionEnd();
       if (!current()) return;
-      this.setAudioSession('play-and-record');
+      this.setVoiceMode(true);
       const recognition = new Recognition();
       window.mentalMathDiagnostics?.observeRecognition(recognition);
       this.recognition = recognition;
@@ -258,7 +271,9 @@ class MentalMathBrowserSpeech {
             'network': '语音识别服务连接失败'
           };
           this.stopListening();
-          onError(reasons[event.error] || '未听清答案，可使用按键作答');
+          onError(event.error === 'offline-unavailable'
+            ? event.message || '离线识别不可用，请使用按键模式'
+            : reasons[event.error] || '未听清答案，可使用按键作答');
         }
       };
       recognition.onend = () => {
@@ -266,7 +281,6 @@ class MentalMathBrowserSpeech {
         if (this.recognitionEnd === ended) this.recognitionEnd = null;
         if (active()) {
           this.recognition = null;
-          this.setAudioSession('auto');
           onError('语音识别已结束，可使用按键作答');
         }
       };
@@ -288,7 +302,6 @@ class MentalMathBrowserSpeech {
     const recognition = this.recognition;
     this.recognition = null;
     if (recognition) recognition.abort();
-    this.setAudioSession('auto');
   }
 
   stopAll() {
@@ -302,6 +315,11 @@ class MentalMathBrowserSpeech {
     }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     this.stopListening();
+  }
+
+  release() {
+    this.stopAll();
+    this.setVoiceMode(false);
   }
 }
 

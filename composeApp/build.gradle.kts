@@ -1,11 +1,26 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.security.MessageDigest
+import org.gradle.api.tasks.bundling.Compression
+
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidKmpLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+}
+
+val offlineModelArchive = tasks.register<Tar>("packageOfflineSpeechModel") {
+    from("src/androidMain/assets/model-cn") { into("model") }
+    archiveFileName.set("vosk-model-cn.tar.gz")
+    compression = Compression.GZIP
+    destinationDirectory.set(layout.buildDirectory.dir("offlineSpeech"))
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
+
+tasks.matching { it.name == "wasmJsProcessResources" }.configureEach {
+    dependsOn(offlineModelArchive)
 }
 
 tasks.matching { it.name == "wasmJsBrowserDistribution" }.configureEach {
@@ -23,7 +38,7 @@ tasks.matching { it.name == "wasmJsBrowserDistribution" }.configureEach {
         }
         val version = digest.digest().joinToString("") { "%02x".format(it) }.take(16)
         distribution.resolve("pwa-assets.json").writeText(
-            assets.joinToString(prefix = "[", postfix = "]") {
+            assets.filter { it.name != "vosk-model-cn.tar.gz" }.joinToString(prefix = "[", postfix = "]") {
                 "\"./${it.relativeTo(distribution).invariantSeparatorsPath}\""
             }
         )
@@ -79,8 +94,10 @@ kotlin {
         }
         wasmJsMain {
             resources.srcDir("src/androidMain/assets/tts")
+            resources.srcDir(layout.buildDirectory.dir("offlineSpeech"))
             dependencies {
                 implementation(libs.kotlinx.browser)
+                implementation(npm("vosk-browser", "0.0.8"))
             }
         }
     }

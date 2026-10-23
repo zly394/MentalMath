@@ -74,6 +74,12 @@ test('offline requests use the current app cache', async () => {
   assert.equal(await response.text(), 'wasm');
 });
 
+test('model archives bypass the app cache because Vosk owns their IndexedDB storage', async () => {
+  const env = worker(() => { throw new Error('Must not intercept model downloads'); });
+  assert.equal(await env.dispatch('fetch', new Request('http://localhost/MentalMath/vosk-model-cn.tar.gz')), undefined);
+  assert.equal(env.stores.size, 0);
+});
+
 test('offline navigation with a query falls back to the precached index', async () => {
   const env = worker(async () => { throw new TypeError('Offline'); });
   const cache = await env.caches.open('mentalmath-pwa-__BUILD_VERSION__');

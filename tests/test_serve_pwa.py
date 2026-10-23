@@ -1,6 +1,7 @@
 import http.client
 import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 import threading
@@ -18,6 +19,21 @@ def event(identifier, name, time, detail="", question=1, recognition=1):
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_receiver_accepts_every_browser_audio_handoff_event(self):
+        speech = (serve_pwa.ROOT / "composeApp" / "src" / "wasmJsMain"
+                  / "resources" / "speech.js").read_text(encoding="utf-8")
+        names = set(re.findall(r"\.record\('([^']+)'", speech))
+        offline = (serve_pwa.ROOT / "composeApp" / "src" / "wasmJsMain"
+                   / "resources" / "offline-speech.js").read_text(encoding="utf-8")
+        names.update(re.findall(r"diagnostic\('([^']+)'", offline))
+        self.assertIn("audio_session", names)
+        for identifier, name in enumerate(sorted(names), 1):
+            with self.subTest(event=name):
+                serve_pwa.validate_batch({
+                    "session": "audio-handoff",
+                    "events": [event(identifier, name, identifier, recognition=0)],
+                })
+
     def test_summary_measures_startup_and_forced_timeout(self):
         events = [
             event(1, "question_start", 0, recognition=0),

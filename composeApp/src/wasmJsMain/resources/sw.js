@@ -26,6 +26,8 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (url.pathname.includes('/__speech_diagnostics/')) return;
+  // Vosk persists the extracted model in IndexedDB; avoid storing another 42 MiB copy.
+  if (url.pathname.endsWith('/vosk-model-cn.tar.gz')) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     try {
