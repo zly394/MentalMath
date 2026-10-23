@@ -40,6 +40,13 @@ Web 构建自动从现有 Android 模型生成 `vosk-model-cn.tar.gz`，无需�
 
 原生 iOS 必须在 macOS / Xcode 下构建并在支持中文端侧识别的设备上验证，Windows 构建不能验证 iOS。
 
+## GitHub Actions
+
+Android 与 PWA 使用独立工作流，均在推送到 `main` / `master` 时运行，也支持手动触发：
+
+- **Build Android APK**（`.github/workflows/android-apk.yml`）：生成使用调试签名、可直接安装的 Debug APK。在成功运行的 **Artifacts** 中下载 `MentalMath-Android-debug-apk`，解压后安装其中的 APK；不用于应用商店正式发布。
+- **Build & Deploy Web PWA**（`.github/workflows/deploy-pwa.yml`）：执行浏览器回归、构建 PWA 并部署到 GitHub Pages，不再包含 Android 构建。
+
 ## 第三方许可
 
 Vosk、vosk-browser 及中文模型使用 Apache 2.0 许可。PWA 随附 `THIRD_PARTY_NOTICES.txt`、`LICENSE-APACHE-2.0.txt` 和构建生成的 JavaScript 许可说明；模型来源及修改说明见上述 notices 文件。

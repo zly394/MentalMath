@@ -62,16 +62,3 @@ jobs:
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-  build-android:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
-      - run: chmod +x gradlew
-      - name: Build Android application
-        run: ./gradlew :androidApp:assembleDebug --no-daemon --stacktrace
