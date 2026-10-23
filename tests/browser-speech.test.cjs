@@ -11,7 +11,7 @@ const pack = fs.readFileSync(path.join(root, 'composeApp', 'src', 'androidMain',
 function environment({
   secure = true, packAvailable = true, audioSession = true, deferredEnd = false,
   audioState = 'running', resumeError = false, manualTimers = false,
-  search = '?speechEngine=browser', offlinePreload
+  search = '?speechEngine=browser', offlinePreload, packGate, prepareGate, microphone
 } = {}) {
   const sources = [];
   const recognitions = [];
@@ -21,6 +21,11 @@ function environment({
   const operations = [];
   const timers = [];
   let trackStopped = false;
+  const track = {
+    readyState: 'live',
+    stop() { trackStopped = true; this.readyState = 'ended'; }
+  };
+  const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
   class AudioContext {
     state = audioState;
     currentTime = 0;
@@ -74,16 +79,20 @@ function environment({
       return timer;
     } : setTimeout,
     clearTimeout: manualTimers ? timer => { timer.cancelled = true; } : clearTimeout,
-    fetch: async () => ({
+    fetch: async () => {
+      if (packGate) await packGate;
+      return ({
       ok: packAvailable,
       status: packAvailable ? 200 : 404,
       arrayBuffer: async () => pack.buffer.slice(pack.byteOffset, pack.byteOffset + pack.byteLength)
-    }),
+      });
+    },
     navigator: {
       mediaDevices: {
-        getUserMedia: async () => ({
-          getTracks: () => [{ stop() { trackStopped = true; } }]
-        })
+        getUserMedia: async () => {
+          operations.push('microphone-open');
+          return microphone ? microphone(stream) : stream;
+        }
       }
     },
     SpeechSynthesisUtterance: class {
@@ -113,6 +122,15 @@ function environment({
   if (offlinePreload) {
     context.MentalMathOfflineRecognition = class {
       static preload = offlinePreload;
+    };
+  }
+  if (prepareGate) {
+    context.MentalMathOfflineRecognition = class extends Recognition {
+      async prepare(stream) {
+        this.stream = stream;
+        operations.push('capture-prepare');
+        await prepareGate;
+      }
     };
   }
   vm.createContext(context);
@@ -162,6 +180,150 @@ test('the production voice pack contains all 132 questions and plays PCM', async
   env.audioContext().currentTime = env.sources[0].buffer.duration;
   await env.sources[0].onended();
   assert.equal(completed, 1);
+});
+
+test('the first question resumes audio synchronously and waits for its voice pack', async () => {
+  let finishDownload;
+  const packGate = new Promise(resolve => { finishDownload = resolve; });
+  const env = environment({ audioState: 'suspended', packGate });
+  let completed = false;
+  const speaking = env.engine.speak('三加五', () => { completed = true; }, assert.fail);
+  assert.deepEqual(env.operations, ['session:playback', 'resume']);
+  await Promise.resolve();
+  assert.equal(env.sources.length, 0);
+  assert.equal(env.utterances.length, 0, 'do not choose system speech while the pack is downloading');
+  finishDownload();
+  await speaking;
+  assert.equal(env.sources.length, 1);
+  assert.equal(completed, false);
+  env.audioContext().currentTime = env.sources[0].buffer.duration;
+  await env.sources[0].onended();
+  assert.equal(completed, true);
+});
+
+test('exit during the first voice pack download cannot play a stale question', async () => {
+  let finishDownload;
+  const env = environment({ packGate: new Promise(resolve => { finishDownload = resolve; }) });
+  const speaking = env.engine.speak('三加五', assert.fail, assert.fail);
+  env.engine.release();
+  finishDownload();
+  await speaking;
+  assert.equal(env.sources.length, 0);
+  assert.equal(env.utterances.length, 0);
+});
+
+test('failed synthesis does not claim the question was spoken', async () => {
+  const env = environment({ packAvailable: false });
+  let completed = false;
+  const errors = [];
+  await env.engine.speak('三加五', () => { completed = true; }, error => errors.push(error));
+  env.utterances[0].onerror({ error: 'not-allowed' });
+  assert.equal(completed, false);
+  assert.match(errors[0], /not-allowed/);
+});
+
+test('offline voice round prepares capture before first playback and retains it between questions', async () => {
+  const env = environment({ search: '', prepareGate: Promise.resolve() });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  let prepared;
+  for (const text of ['三加五', '四加四']) {
+    await env.engine.speak(text, () => {}, assert.fail);
+    prepared = env.recognitions.at(-1);
+    assert.equal(env.operations.filter(item => item === 'microphone-open').length, 1);
+    assert.ok(env.operations.indexOf('capture-prepare') < env.operations.indexOf('playback-start'));
+    let detected = 0, result;
+    await env.engine.startListening(() => {}, () => detected++, raw => { result = raw; return true; }, assert.fail);
+    assert.equal(env.engine.recognition, prepared);
+    prepared.onaudiostart();
+    prepared.onresult({ results: [[{ transcript: '八' }]] });
+    assert.equal(result, '八');
+    assert.equal(detected, 1);
+    env.engine.stopAll();
+    assert.equal(env.trackStopped(), false);
+  }
+  assert.equal(env.recognitions.length, 2, 'fresh recognizer per question');
+  env.engine.release();
+  assert.equal(env.trackStopped(), true);
+});
+
+test('release during offline capture preparation never starts playback and releases the microphone', async () => {
+  let ready;
+  const env = environment({ search: '', prepareGate: new Promise(resolve => { ready = resolve; }) });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  const speaking = env.engine.speak('三加五', assert.fail, assert.fail);
+  while (!env.engine.preparedRecognition) await Promise.resolve();
+  env.engine.release();
+  ready();
+  await speaking;
+  assert.equal(env.sources.length, 0);
+  assert.equal(env.trackStopped(), true);
+});
+
+test('a microphone granted after exiting offline preparation is stopped immediately', async () => {
+  let grant;
+  const env = environment({
+    search: '', prepareGate: Promise.resolve(),
+    microphone: stream => new Promise(resolve => { grant = () => resolve(stream); })
+  });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  const speaking = env.engine.speak('三加五', assert.fail, assert.fail);
+  while (!grant) await Promise.resolve();
+  env.engine.release();
+  grant();
+  await speaking;
+  assert.equal(env.sources.length, 0);
+  assert.equal(env.trackStopped(), true);
+});
+
+test('switching to keypad while offline permission is pending still plays the question', async () => {
+  let grant;
+  const env = environment({
+    search: '', prepareGate: Promise.resolve(),
+    microphone: stream => new Promise(resolve => { grant = () => resolve(stream); })
+  });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  const speaking = env.engine.speak('三加五', () => {}, assert.fail);
+  while (!grant) await Promise.resolve();
+  env.engine.setVoiceMode(false);
+  grant();
+  await speaking;
+  assert.equal(env.sources.length, 1);
+  assert.equal(env.trackStopped(), true);
+});
+
+test('failed offline preparation reports an error instead of pretending playback completed', async () => {
+  let fail;
+  const env = environment({
+    search: '', prepareGate: new Promise((_, reject) => { fail = reject; })
+  });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  const errors = [];
+  const speaking = env.engine.speak('三加五', assert.fail, error => errors.push(error));
+  while (!env.engine.preparedRecognition) await Promise.resolve();
+  fail(new Error('capture failed'));
+  await speaking;
+  assert.equal(env.sources.length, 0);
+  assert.match(errors[0], /capture failed/);
+  assert.equal(env.engine.preparedRecognition, null);
+  env.engine.release();
+  assert.equal(env.trackStopped(), true);
+});
+
+test('asynchronous recognition startup failures are handled without an unhandled rejection', async () => {
+  const env = environment();
+  await env.ready;
+  env.context.window.SpeechRecognition.prototype.start = async () => {
+    throw new Error('startup failed');
+  };
+  const errors = [];
+  await env.engine.startListening(assert.fail, assert.fail, assert.fail, reason => errors.push(reason));
+  assert.equal(errors.length, 1);
+  assert.equal(env.engine.recognition, null);
 });
 
 test('offline is the default engine even when browser speech recognition exists', async () => {
@@ -327,6 +489,7 @@ test('microphone release timeout reports a playback error instead of playing ove
   await env.engine.startListening(() => {}, () => {}, () => false, assert.fail);
   const errors = [];
   const playback = env.engine.speak('三加五', assert.fail, error => errors.push(error));
+  await Promise.resolve();
   assert.equal(env.timers.length, 1);
   assert.equal(env.timers[0].delay, 3000);
   env.timers[0].callback();
@@ -343,6 +506,7 @@ test('a late timeout after exit cannot report an error to the old question', asy
   await env.engine.startListening(() => {}, () => {}, () => false, assert.fail);
   const playback = env.engine.speak('三加五', assert.fail, assert.fail);
   env.engine.stopAll();
+  await Promise.resolve();
   env.timers[0].callback();
   await playback;
   assert.equal(env.sources.length, 0);

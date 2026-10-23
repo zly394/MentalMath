@@ -11,6 +11,10 @@ class MentalMathBrowserSpeech {
     this.listeningToken = 0;
     this.voiceMode = false;
     this.permissionGranted = false;
+    this.captureStream = null;
+    this.capturePromise = null;
+    this.captureGeneration = 0;
+    this.preparedRecognition = null;
     if (!MentalMathBrowserSpeech.loading) {
       MentalMathBrowserSpeech.loading = this.loadPack().catch(error => {
         console.error('Failed to load phrases.pak; using speech synthesis:', error);
@@ -65,8 +69,40 @@ class MentalMathBrowserSpeech {
 
   setVoiceMode(enabled) {
     this.voiceMode = enabled;
-    if (!enabled) this.stopListening();
+    if (!enabled) {
+      this.stopListening();
+      this.releaseCapture();
+    }
     this.setAudioSession(enabled ? 'play-and-record' : 'auto');
+  }
+
+  releaseCapture() {
+    this.captureGeneration++;
+    this.capturePromise = null;
+    this.captureStream?.getTracks().forEach(track => track.stop());
+    this.captureStream = null;
+  }
+
+  acquireCapture() {
+    if (this.captureStream?.getAudioTracks().every(track => track.readyState === 'live')) {
+      return Promise.resolve(this.captureStream);
+    }
+    if (!this.capturePromise) {
+      const generation = this.captureGeneration;
+      this.capturePromise = navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      }).then(stream => {
+        if (generation !== this.captureGeneration || !this.voiceMode) {
+          stream.getTracks().forEach(track => track.stop());
+          throw Object.assign(new Error('语音准备已取消'), { name: 'AbortError' });
+        }
+        this.captureStream = stream;
+        return stream;
+      }).finally(() => {
+        if (generation === this.captureGeneration) this.capturePromise = null;
+      });
+    }
+    return this.capturePromise;
   }
 
   async waitForRecognitionEnd() {
@@ -147,18 +183,42 @@ class MentalMathBrowserSpeech {
     };
     let context;
     try {
-      await this.waitForRecognitionEnd();
-      if (this.token !== token) return;
       this.setAudioSession(this.voiceMode ? 'play-and-record' : 'playback');
       context = this.audioContext();
+      // Resume within the initiating gesture, before any asynchronous preparation.
+      const resuming = context.state !== 'running' ? context.resume() : Promise.resolve();
+      await resuming;
+      await this.waitForRecognitionEnd();
+      await MentalMathBrowserSpeech.loading;
+      if (this.token !== token) return;
+      const Recognition = this.recognitionType();
+      if (this.voiceMode && Recognition?.prototype.prepare) {
+        const stream = await this.acquireCapture();
+        if (this.token !== token) return;
+        if (context.state !== 'running') await context.resume();
+        if (this.voiceMode && this.token === token) {
+          const recognition = new Recognition();
+          this.preparedRecognition = recognition;
+          recognition.onerror = event => {
+            if (this.token !== token || this.preparedRecognition !== recognition) return;
+            this.stopAll();
+            onError(event.message || '离线收音准备失败');
+          };
+          await recognition.prepare(stream);
+        }
+        if (this.token !== token) return;
+      }
       if (context.state !== 'running') await context.resume();
       if (this.token !== token) return;
     } catch (error) {
       if (this.token !== token) return;
-      console.error('Audio playback preparation failed:', error);
-      window.mentalMathDiagnostics?.record('playback_failure');
-      onError('播题音频准备失败');
-      return;
+      if (error.name !== 'AbortError' || this.voiceMode) {
+        this.stopListening();
+        console.error('Audio playback preparation failed:', error);
+        window.mentalMathDiagnostics?.record('playback_failure');
+        onError('播题或麦克风准备失败：' + error.message);
+        return;
+      }
     }
     const pack = MentalMathBrowserSpeech.pack;
     const slice = pack && pack.phrases.get(text);
@@ -196,33 +256,40 @@ class MentalMathBrowserSpeech {
       utterance.rate = 1.15;
       utterance.onend = done;
       utterance.onerror = event => {
+        if (this.token !== token) return;
         console.error('Speech synthesis failed:', event.error);
-        done();
+        onError('题目播报失败：' + event.error);
       };
       window.speechSynthesis.speak(utterance);
       window.mentalMathDiagnostics?.record('playback_start', 'synthesis');
     } else {
       console.error('No audio playback or speech synthesis is available');
-      setTimeout(done, 500);
+      onError('当前浏览器无法播报题目');
     }
   }
 
   async startListening(onListeningReady, onSpeechDetected, onCandidates, onError) {
+    const prepared = this.preparedRecognition;
+    this.preparedRecognition = null;
     this.stopListening();
     const token = this.token;
     const listeningToken = this.listeningToken;
     const current = () => this.token === token && this.listeningToken === listeningToken;
     const Recognition = this.recognitionType();
     if (!Recognition || !window.isSecureContext) {
+      prepared?.abort();
       onError('当前浏览器或连接不支持语音识别，请使用按键模式');
       return;
     }
     let finishRecognition;
     try {
       await this.waitForRecognitionEnd();
-      if (!current()) return;
+      if (!current()) {
+        prepared?.abort();
+        return;
+      }
       this.setVoiceMode(true);
-      const recognition = new Recognition();
+      const recognition = prepared || new Recognition();
       window.mentalMathDiagnostics?.observeRecognition(recognition);
       this.recognition = recognition;
       recognition.lang = 'zh-CN';
@@ -289,8 +356,9 @@ class MentalMathBrowserSpeech {
           onError('语音识别已结束，可使用按键作答');
         }
       };
-      recognition.start();
+      await recognition.start();
     } catch (error) {
+      prepared?.abort();
       if (!current()) return;
       if (finishRecognition) {
         finishRecognition();
@@ -304,6 +372,8 @@ class MentalMathBrowserSpeech {
 
   stopListening() {
     this.listeningToken++;
+    this.preparedRecognition?.abort();
+    this.preparedRecognition = null;
     const recognition = this.recognition;
     this.recognition = null;
     if (recognition) recognition.abort();

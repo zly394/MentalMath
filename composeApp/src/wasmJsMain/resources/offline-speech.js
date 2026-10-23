@@ -101,6 +101,10 @@
       this.ready = false;
       this.pending = 0;
       this.started = false;
+      this.preparing = null;
+      this.ownsStream = true;
+      this.capturing = false;
+      this.captureReady = new Promise(resolve => { this.resolveCaptureReady = resolve; });
     }
 
     emit(type, detail = {}) {
@@ -110,8 +114,38 @@
     }
 
     async start() {
-      if (this.started || this.stopped) throw new Error('Recognition already started or stopped');
-      this.started = true;
+      if (this.startRequested || this.stopped) throw new Error('Recognition already started or stopped');
+      this.startRequested = true;
+      try {
+        if (this.preparing) await this.preparing;
+        else await this.initialize();
+        if (this.stopped) return;
+        this.started = true;
+        this.listeningFromTime = globalThis.MentalMathBrowserSpeech.audioContext.currentTime;
+        if (this.capturing) {
+          this.ready = true;
+          this.emit('audiostart');
+        }
+      } catch (error) {
+        this.fail(error);
+      }
+    }
+
+    async prepare(stream) {
+      this.preparing = this.initialize(stream);
+      await this.preparing;
+      if (this.stopped) throw this.failure ||
+        Object.assign(new Error('离线收音准备已取消'), { name: 'AbortError' });
+      const timeout = setTimeout(() => this.fail(new Error('麦克风收音准备超时')), 5000);
+      try {
+        if (!await this.captureReady) throw this.failure ||
+          Object.assign(new Error('离线收音准备已取消'), { name: 'AbortError' });
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    async initialize(preparedStream) {
       try {
         const model = await loadModel();
         if (this.stopped) return;
@@ -120,11 +154,12 @@
         if (!context?.audioWorklet) throw new Error('当前浏览器不支持离线收音，请更新 Safari');
         await loadCaptureModule(context);
         if (this.stopped) return;
-        const stream = await navigator.mediaDevices.getUserMedia({
+        this.ownsStream = !preparedStream;
+        const stream = preparedStream || await navigator.mediaDevices.getUserMedia({
           audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
         });
         if (this.stopped) {
-          stream.getTracks().forEach(track => track.stop());
+          if (this.ownsStream) stream.getTracks().forEach(track => track.stop());
           return;
         }
         this.stream = stream;
@@ -133,7 +168,7 @@
         for (const type of ['result', 'partialresult']) {
           this.recognizer.on(type, message => {
             this.pending = Math.max(0, this.pending - 1);
-            if (this.stopped) return;
+            if (this.stopped || !this.started) return;
             const text = (message.result.text || message.result.partial || '').trim();
             if (!text || text === '[unk]') return;
             this.detect();
@@ -154,12 +189,21 @@
         this.node.port.onmessage = event => {
           try {
             if (this.stopped) return;
+            this.capturing = true;
+            this.resolveCaptureReady(true);
+            if (!this.started) return;
+            const packet = event.data;
+            let samples = packet.samples;
+            const skipped = Math.max(0, Math.ceil(
+              (this.listeningFromTime - packet.startTime) * context.sampleRate
+            ));
+            if (skipped >= samples.length) return;
+            if (skipped > 0) samples = samples.slice(skipped);
             if (!this.ready) {
               this.ready = true;
               this.emit('audiostart');
               if (this.stopped) return;
             }
-            const samples = event.data;
             let energy = 0;
             for (const sample of samples) energy += sample * sample;
             if (Math.sqrt(energy / samples.length) > 380 / 32768) this.detect();
@@ -193,6 +237,7 @@
 
     fail(error) {
       if (this.stopped) return;
+      this.failure = error;
       console.error('Offline recognition failed:', error);
       diagnostic('offline_capture_error');
       this.emit('error', { error: 'offline-unavailable', message: error.message });
@@ -202,6 +247,7 @@
     abort() {
       if (this.stopped) return;
       this.stopped = true;
+      this.resolveCaptureReady(false);
       listeners.delete(this);
       if (this.node) {
         this.node.port.onmessage = null;
@@ -210,7 +256,10 @@
         this.node.port.close();
       }
       this.source?.disconnect();
-      this.stream?.getTracks().forEach(track => track.stop());
+      if (this.stream) {
+        this.stream.getAudioTracks()[0].onended = null;
+        if (this.ownsStream) this.stream.getTracks().forEach(track => track.stop());
+      }
       try {
         this.recognizer?.remove();
       } catch (error) {

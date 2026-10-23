@@ -46,7 +46,7 @@ function environment({ microphone, acceptError = false, removeError = false, wor
   const track = { stop() { stoppedTracks++; } };
   const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
   const audioContext = {
-    sampleRate: 48000, destination: {},
+    sampleRate: 48000, currentTime: 0, destination: {},
     audioWorklet: { addModule: async () => {
       workletLoads++;
       if (worklet) await worklet();
@@ -74,6 +74,7 @@ function environment({ microphone, acceptError = false, removeError = false, wor
     stoppedTracks: () => stoppedTracks, captures: () => captures,
     workletLoads: () => workletLoads,
     preload: () => context.MentalMathOfflineRecognition.preload(),
+    stream,
     create: () => new context.MentalMathOfflineRecognition(),
     async start() {
       const recognition = this.create();
@@ -85,7 +86,9 @@ function environment({ microphone, acceptError = false, removeError = false, wor
       await starting;
       return recognition;
     },
-    audio(samples = new Float32Array(1024)) { nodes.at(-1).port.onmessage({ data: samples }); }
+    audio(samples = new Float32Array(1024), startTime = audioContext.currentTime) {
+      nodes.at(-1).port.onmessage({ data: { samples, startTime } });
+    }
   };
 }
 
@@ -114,6 +117,82 @@ test('one model is reused across questions and each microphone is released', asy
   assert.equal(env.nodes[0].port.closed, true);
   assert.equal(env.recognizers[0].removed, true);
   second.abort();
+});
+
+async function prepareQuestion(env) {
+  const recognition = env.create();
+  const preparing = recognition.prepare(env.stream);
+  if (!env.models[0].loaded) {
+    env.models[0].loaded = true;
+    env.models[0].emit('load', { result: true });
+  }
+  while (!recognition.node) await Promise.resolve();
+  env.audio(new Float32Array(1024).fill(0.5));
+  await preparing;
+  return recognition;
+}
+
+test('offline capture is warm before playback but never decodes the spoken question', async () => {
+  const env = environment();
+  const recognition = await prepareQuestion(env);
+  assert.equal(env.captures(), 0, 'the session supplies its already-open stream');
+  assert.equal(env.recognizers[0].samples.length, 0);
+  env.audio(new Float32Array(1024).fill(0.5));
+  assert.equal(env.recognizers[0].samples.length, 0);
+  let ready = 0, detected = 0, result = '';
+  recognition.onaudiostart = () => ready++;
+  recognition.onspeechstart = () => detected++;
+  recognition.onresult = event => { result = event.results[0][0].transcript; };
+  await recognition.start();
+  assert.equal(ready, 1, 'warm capture activates without reopening the microphone');
+  env.audio(new Float32Array(1024).fill(0.02));
+  env.recognizers[0].emit('partialresult', { result: { partial: '八' } });
+  assert.equal(detected, 1);
+  assert.equal(result, '八');
+  recognition.abort();
+  assert.equal(env.stoppedTracks(), 0, 'question cleanup must preserve the round stream');
+  assert.equal(env.recognizers[0].removed, true);
+  assert.equal(env.nodes[0].port.closed, true);
+});
+
+test('delayed microphone packets discard playback samples and preserve the immediate answer tail', async () => {
+  const env = environment();
+  const recognition = await prepareQuestion(env);
+  env.context.MentalMathBrowserSpeech.audioContext.currentTime = 1;
+  await recognition.start();
+  env.audio(new Float32Array(480).fill(0.5), 0.98);
+  assert.equal(env.recognizers[0].samples.length, 0);
+  const boundary = new Float32Array(960);
+  boundary.fill(0.5, 0, 480);
+  boundary.fill(0.02, 480);
+  env.audio(boundary, 0.99);
+  const accepted = env.recognizers[0].samples[0].samples;
+  assert.ok(accepted.length >= 479 && accepted.length <= 480);
+  assert.equal(accepted.every(sample => sample < 0.03), true);
+  recognition.abort();
+});
+
+test('cancelling prepared capture settles its wait without stopping the session stream', async () => {
+  const env = environment();
+  const recognition = env.create();
+  const preparing = recognition.prepare(env.stream);
+  env.models[0].emit('load', { result: true });
+  while (!recognition.node) await Promise.resolve();
+  recognition.abort();
+  await assert.rejects(preparing, /取消/);
+  assert.equal(env.stoppedTracks(), 0);
+});
+
+test('prepared capture startup failure is explicit rather than silently starting playback', async () => {
+  const env = environment();
+  const recognition = env.create();
+  const preparing = recognition.prepare(env.stream);
+  env.models[0].emit('load', { result: true });
+  while (!recognition.node) await Promise.resolve();
+  while (env.timers.length < 2) await Promise.resolve();
+  env.timers[1].callback();
+  await assert.rejects(preparing, /收音准备超时/);
+  assert.equal(recognition.stopped, true);
 });
 
 test('homepage preload shares the pending model with practice without opening a microphone', async () => {
@@ -338,16 +417,23 @@ test('unprocessed audio is bounded to two seconds instead of accumulating latenc
 test('capture batches 1024 samples without routing microphone input to output', () => {
   let Processor;
   const messages = [];
-  vm.runInNewContext(fs.readFileSync(path.join(resources, 'offline-capture.js'), 'utf8'), {
+  const context = {
     Float32Array,
+    currentFrame: 0, sampleRate: 48000,
     AudioWorkletProcessor: class { port = { postMessage: data => messages.push(data) }; },
     registerProcessor: (name, processor) => { assert.equal(name, 'mentalmath-capture'); Processor = processor; }
-  });
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(resources, 'offline-capture.js'), 'utf8'), context);
   const processor = new Processor();
   const output = new Float32Array(128);
-  for (let i = 0; i < 9; i++) processor.process([[new Float32Array(128).fill(0.5)]], [[output]]);
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0].length, 1024);
-  assert.equal(messages[0][0], 0.5);
+  for (let i = 0; i < 17; i++) {
+    context.currentFrame = i * 128;
+    processor.process([[new Float32Array(128).fill(0.5)]], [[output]]);
+  }
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0].samples.length, 1024);
+  assert.equal(messages[0].samples[0], 0.5);
+  assert.equal(messages[0].startTime, 0);
+  assert.equal(messages[1].startTime, 1024 / 48000);
   assert.equal(output.every(sample => sample === 0), true);
 });
