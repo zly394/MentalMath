@@ -6,11 +6,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
-# 避免多并发推送导致 Pages 部署死锁排队（官方标准配置）
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -20,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -32,45 +31,47 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Compose Web PWA Distribution
-        run: ./gradlew :composeApp:jsBrowserDistribution --no-daemon --stacktrace
+      - name: Test browser integration
+        run: node --test tests/*.test.cjs
 
-      - name: Verify PWA runtime and diagnostics
+      - name: Build Compose Web PWA Distribution
+        run: ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace
+
+      - name: Verify diagnostic receiver
         run: |
-          node --test tests/runtime-atomic.test.cjs tests/speech-diagnostics.test.cjs
           python3 -m unittest discover -s tests -p test_serve_pwa.py
 
       - name: Upload PWA Distribution Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MentalMath-PWA-dist
-          path: composeApp/build/dist/js/productionExecutable/
+          path: composeApp/build/dist/wasmJs/productionExecutable/
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload Pages artifact
+      - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: composeApp/build/dist/js/productionExecutable/
-
-      # 双保险：同时发布到 gh-pages 分支（如果 Actions 方式受环境审批限制，可直接切该分支秒级生效）
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: composeApp/build/dist/js/productionExecutable/
-          force_orphan: true
+          path: composeApp/build/dist/wasmJs/productionExecutable/
 
   deploy-pages:
+    needs: build-pwa
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build-pwa
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      - run: chmod +x gradlew
+      - name: Build Android application
+        run: ./gradlew :androidApp:assembleDebug --no-daemon --stacktrace

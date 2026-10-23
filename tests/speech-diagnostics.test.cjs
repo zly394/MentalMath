@@ -5,7 +5,7 @@ const { test } = require("node:test");
 const { runInNewContext } = require("node:vm");
 const { webcrypto } = require("node:crypto");
 const source = readFileSync(resolve(__dirname,
-  "..", "composeApp", "src", "jsMain", "resources", "speech-diagnostics.js"), "utf8");
+  "..", "composeApp", "src", "wasmJsMain", "resources", "speech-diagnostics.js"), "utf8");
 
 function setup(enabled = true) {
   let time = 0;

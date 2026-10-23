@@ -1,6 +1,6 @@
 """Local PWA hosting with optional speech timing diagnostics.
 
-Build with: gradlew.bat :composeApp:jsBrowserDistribution
+Build with: gradlew.bat :composeApp:wasmJsBrowserDistribution
 Run with: python serve_pwa.py --port 8080 --diagnostics
 Open: http://<LAN-IP>:8080/?speechDebug=1
 Read: /__speech_diagnostics/summary
@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parent
-DIRECTORY = ROOT / "composeApp" / "build" / "dist" / "js" / "productionExecutable"
+DIRECTORY = ROOT / "composeApp" / "build" / "dist" / "wasmJs" / "productionExecutable"
 EVENTS_PATH = "/__speech_diagnostics/events"
 SUMMARY_PATH = "/__speech_diagnostics/summary"
 CA_PATH = "/__speech_diagnostics/ca.cer"

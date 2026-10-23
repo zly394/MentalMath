@@ -16,6 +16,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
       });
       try {
         await context.addInitScript(mode => {
+          Object.defineProperty(navigator, "mediaDevices", {
+            configurable: true,
+            value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) }
+          });
           window.testRecognizers = [];
           window.SpeechRecognition = class extends EventTarget {
             constructor() {
@@ -88,6 +92,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
             await page.waitForTimeout(2100);
             assert.equal((await events()).some(item => item.event === "countdown_start"), false);
             assert.equal((await events()).some(item => item.event === "question_settled"), false);
+            await waitEvent("listening_ready");
+            const firstFrame = await page.screenshot({
+              clip: { x: 0, y: 0, width: 390, height: 740 }
+            });
+            await page.waitForTimeout(180);
+            const secondFrame = await page.screenshot({
+              clip: { x: 0, y: 0, width: 390, height: 740 }
+            });
+            assert.notDeepEqual(firstFrame, secondFrame, "countdown must repaint without input");
             await waitEvent("number_parsed");
             const recorded = await events();
             assert.equal(recorded.filter(item => item.event === "countdown_start").length, 1);
