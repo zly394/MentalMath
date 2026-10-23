@@ -79,6 +79,7 @@ kotlin {
 
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
             implementation(libs.vosk.android)
         }
         commonMain.dependencies {

@@ -31,7 +31,7 @@ expect class SpeechEngine() {
      * 开启单题流式语音抢答监听
      *
      * @param expectedAnswer 当前标准答案（用于同音字消歧）
-     * @param onListeningReady 可以开始答题计时；Web 与 iOS 等待实际收音，Android 等待识别服务启动
+     * @param onListeningReady 麦克风实际开始收音后触发，用于开始答题计时
      * @param onSpeechDetected 当检测到孩子开口发声瞬间回调（立即锁表暂停超时倒计时）
      * @param onRecognizedNumber 当流式或最终结果解析出 0~10 数字时立即回调 (数字, 原始文本)
      * @param onErrorOrEmpty 当识别结束仍未解析出有效数字或引擎不可用时回调提示信息

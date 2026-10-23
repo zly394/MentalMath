@@ -8,15 +8,18 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import com.zly.mentalmath.data.MathRepository
 import com.zly.mentalmath.model.QuestionMode
+import com.zly.mentalmath.navigation.PlatformBackHandler
 import com.zly.mentalmath.speech.SpeechEngine
 import com.zly.mentalmath.ui.AnalysisScreen
 import com.zly.mentalmath.ui.HomeScreen
@@ -29,6 +32,8 @@ private enum class AppRoute {
     PRACTICE,
     ANALYSIS
 }
+
+private data class PracticeLaunch(val overrideMode: QuestionMode?)
 
 private fun Typography.withFontFamily(fontFamily: FontFamily): Typography = Typography(
     displayLarge = displayLarge.copy(fontFamily = fontFamily),
@@ -66,6 +71,29 @@ fun App(customFontFamily: FontFamily? = null) {
     val sessions by repository.sessions.collectAsState()
 
     var currentRoute by remember { mutableStateOf(AppRoute.HOME) }
+    var practiceLaunch by remember { mutableStateOf<PracticeLaunch?>(null) }
+    PlatformBackHandler(enabled = currentRoute != AppRoute.HOME) {
+        when (currentRoute) {
+            AppRoute.HOME -> Unit
+            AppRoute.PRACTICE -> {
+                if (practiceLaunch == null) viewModel.stopSession()
+                practiceLaunch = null
+                currentRoute = AppRoute.HOME
+            }
+            AppRoute.ANALYSIS -> currentRoute = AppRoute.HOME
+        }
+    }
+
+    LaunchedEffect(currentRoute, practiceLaunch) {
+        if (currentRoute == AppRoute.PRACTICE && practiceLaunch != null) {
+            withFrameNanos { }
+            withFrameNanos { }
+            val launch = practiceLaunch ?: return@LaunchedEffect
+            viewModel.startSession(overrideMode = launch.overrideMode)
+            practiceLaunch = null
+        }
+    }
+
     val baseTypography = MaterialTheme.typography
     val appTypography = remember(customFontFamily, baseTypography) {
         if (customFontFamily != null) baseTypography.withFontFamily(customFontFamily) else baseTypography
@@ -88,11 +116,11 @@ fun App(customFontFamily: FontFamily? = null) {
                             onSelectTimeLimit = viewModel::updateTimeLimit,
                             onSelectInputMode = viewModel::updateInputMode,
                             onStartPractice = {
-                                viewModel.startSession()
+                                practiceLaunch = PracticeLaunch(overrideMode = null)
                                 currentRoute = AppRoute.PRACTICE
                             },
                             onStartMistakeReview = {
-                                viewModel.startSession(overrideMode = QuestionMode.MISTAKE_REVIEW)
+                                practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
                                 currentRoute = AppRoute.PRACTICE
                             },
                             onOpenAnalysis = {
@@ -104,6 +132,7 @@ fun App(customFontFamily: FontFamily? = null) {
                     AppRoute.PRACTICE -> {
                         PracticeScreen(
                             state = uiState,
+                            isStarting = practiceLaunch != null,
                             onToggleInputMode = viewModel::updateInputMode,
                             onKeypadSubmit = viewModel::submitKeypadAnswer,
                             onRestartSession = {
@@ -114,7 +143,8 @@ fun App(customFontFamily: FontFamily? = null) {
                                 currentRoute = AppRoute.ANALYSIS
                             },
                             onExit = {
-                                viewModel.stopSession()
+                                if (practiceLaunch == null) viewModel.stopSession()
+                                practiceLaunch = null
                                 currentRoute = AppRoute.HOME
                             }
                         )
@@ -125,7 +155,7 @@ fun App(customFontFamily: FontFamily? = null) {
                             statsMap = statsMap,
                             sessions = sessions,
                             onStartMistakePractice = {
-                                viewModel.startSession(overrideMode = QuestionMode.MISTAKE_REVIEW)
+                                practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
                                 currentRoute = AppRoute.PRACTICE
                             },
                             onRemoveMistake = repository::removeFromMistakeBook,

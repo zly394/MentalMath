@@ -333,7 +333,6 @@ actual class SpeechEngine actual constructor() {
     ) {
         isListeningActive.set(false)
         val myListenToken = listenTokenGen.incrementAndGet()
-        onListeningReady()
 
         audioExecutor.execute {
             if (listenTokenGen.get() != myListenToken) return@execute
@@ -387,6 +386,14 @@ actual class SpeechEngine actual constructor() {
 
                 isListeningActive.set(true)
                 audioRecord.startRecording()
+                check(audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    "麦克风未进入收音状态"
+                }
+                mainHandler.post {
+                    if (listenTokenGen.get() == myListenToken && isListeningActive.get()) {
+                        onListeningReady()
+                    }
+                }
 
                 // 480 采样点 = 30ms 低延迟帧
                 val frameShorts = ShortArray(480)
@@ -420,8 +427,16 @@ actual class SpeechEngine actual constructor() {
                     val jsonStr = if (isFinal) recognizer.result else recognizer.partialResult
                     val extractedText = extractTextFromVoskJson(jsonStr)
 
-                    // 3. 只要本题已检测到有效发声且识别出数字，立即极速返回
-                    if (extractedText.isNotBlank() && speechDetectedTriggered) {
+                    // 3. Recognizer text is stronger evidence of speech than the RMS threshold alone.
+                    if (extractedText.isNotBlank()) {
+                        if (!speechDetectedTriggered) {
+                            speechDetectedTriggered = true
+                            mainHandler.post {
+                                if (listenTokenGen.get() == myListenToken && isListeningActive.get()) {
+                                    onSpeechDetected()
+                                }
+                            }
+                        }
                         val number = NumberVoiceParser.parseSpokenNumber(
                             listOf(extractedText),
                             expectedAnswer
@@ -441,7 +456,15 @@ actual class SpeechEngine actual constructor() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Offline Vosk recognition error", e)
+                mainHandler.post {
+                    if (listenTokenGen.get() == myListenToken) {
+                        onErrorOrEmpty("离线收音失败：${e.message ?: "未知错误"}")
+                    }
+                }
             } finally {
+                if (listenTokenGen.get() == myListenToken) {
+                    isListeningActive.set(false)
+                }
                 try {
                     audioRecord?.stop()
                 } catch (_: Exception) {

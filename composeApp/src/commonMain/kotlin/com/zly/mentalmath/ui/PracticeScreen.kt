@@ -45,12 +45,27 @@ import com.zly.mentalmath.model.Question
 @Composable
 fun PracticeScreen(
     state: PracticeUiState,
+    isStarting: Boolean,
     onToggleInputMode: (InputMode) -> Unit,
     onKeypadSubmit: (Int) -> Unit,
     onRestartSession: () -> Unit,
     onOpenAnalysis: () -> Unit,
     onExit: () -> Unit
 ) {
+    if (isStarting) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "正在进入答题…",
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center
+            )
+        }
+        return
+    }
+
     if (state.phase == QuestionPhase.SESSION_SUMMARY) {
         SessionSummaryView(
             state = state,
