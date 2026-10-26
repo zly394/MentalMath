@@ -384,6 +384,28 @@ test('callbacks from a stopped recognition do not reach the next question', asyn
   assert.equal(called, false);
 });
 
+test('recognition forwards finality and empty hypotheses for shared answer confirmation', async () => {
+  const env = environment();
+  await env.ready;
+  const observations = [];
+  await env.engine.startListening(() => {}, () => {}, (text, isFinal) => {
+    observations.push([text, isFinal]);
+    return false;
+  }, assert.fail);
+  const recognition = env.recognitions[0];
+  recognition.onresult({ results: [Object.assign([{ transcript: '四' }], { isFinal: false })] });
+  recognition.onresult({ results: [Object.assign([{ transcript: '' }], { isFinal: false })] });
+  recognition.onresult({
+    resultIndex: 1,
+    results: [
+      Object.assign([{ transcript: '四' }], { isFinal: true }),
+      Object.assign([{ transcript: '十' }], { isFinal: true })
+    ]
+  });
+  assert.deepEqual(observations, [['四', false], ['', false], ['十', true]]);
+  assert.notEqual(env.engine.recognition, null);
+});
+
 test('answer settlement can stop recognition inside the callback', async () => {
   const env = environment();
   await env.ready;

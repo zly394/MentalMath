@@ -169,9 +169,9 @@
           this.recognizer.on(type, message => {
             this.pending = Math.max(0, this.pending - 1);
             if (this.stopped || !this.started) return;
-            const text = (message.result.text || message.result.partial || '').trim();
-            if (!text || text === '[unk]') return;
-            this.detect();
+            const raw = (message.result.text || message.result.partial || '').trim();
+            const text = raw === '[unk]' ? '' : raw;
+            if (text) this.detect();
             this.emit('result', {
               resultIndex: 0,
               results: [Object.assign([{ transcript: text.replace(/\s/g, '') }], {

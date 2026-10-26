@@ -1,12 +1,14 @@
 package com.zly.mentalmath.speech
 
-import com.zly.mentalmath.domain.NumberVoiceParser
+import com.zly.mentalmath.domain.VoiceAnswerConfirmation
 
 @JsModule("vosk-browser")
 private external object VoskModule : JsAny
 
 private fun installOfflineVosk(module: JsAny): Unit =
     js("globalThis.mentalMathVosk = module")
+
+private fun monotonicTimeMs(): Double = js("performance.now()")
 
 private external class MentalMathBrowserSpeech : JsAny {
     fun hasRecordPermission(): Boolean
@@ -16,7 +18,7 @@ private external class MentalMathBrowserSpeech : JsAny {
     fun startListening(
         onListeningReady: () -> Unit,
         onSpeechDetected: () -> Unit,
-        onCandidates: (String) -> Boolean,
+        onCandidates: (String, Boolean) -> Boolean,
         onError: (String) -> Unit
     )
     fun stopAll()
@@ -51,12 +53,13 @@ actual class SpeechEngine actual constructor() {
         onRecognizedNumber: (number: Int, rawText: String) -> Unit,
         onErrorOrEmpty: (reason: String) -> Unit
     ) {
+        val confirmation = VoiceAnswerConfirmation()
         browser.startListening(
             onListeningReady,
             onSpeechDetected,
-            { raw ->
+            { raw, isFinal ->
                 val candidates = raw.split("\n")
-                val number = NumberVoiceParser.parseSpokenNumber(candidates, expectedAnswer)
+                val number = confirmation.observe(candidates, isFinal, monotonicTimeMs().toLong())
                 if (number != null) {
                     onRecognizedNumber(number, candidates.first())
                     true

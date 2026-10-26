@@ -318,16 +318,19 @@ class MentalMathBrowserSpeech {
       recognition.onresult = event => {
         if (!active()) return;
         const candidates = [];
-        for (let i = 0; i < event.results.length; i++) {
+        let isFinal = false;
+        const resultIndex = event.resultIndex ?? 0;
+        for (let i = resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
+          if (i === resultIndex) isFinal = result.isFinal === true;
           for (let j = 0; j < result.length; j++) {
             const text = result[j].transcript.trim();
-            if (text) candidates.push(text);
+            candidates.push(text);
           }
         }
-        if (candidates.length) {
-          detect();
-          if (onCandidates(candidates.join('\n'))) {
+        if (candidates.some(text => text)) detect();
+        if (active()) {
+          if (onCandidates(candidates.join('\n'), isFinal)) {
             delivered = true;
             if (this.recognition === recognition) this.stopListening();
           }

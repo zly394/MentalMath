@@ -37,6 +37,7 @@ kotlin {
 }
 
 dependencies {
+    testImplementation(kotlin("test-junit"))
     implementation(projects.composeApp)
     implementation(libs.androidx.activity.compose)
     implementation(libs.compose.runtime)

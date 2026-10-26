@@ -10,8 +10,9 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
-import com.zly.mentalmath.domain.NumberVoiceParser
+import com.zly.mentalmath.domain.VoiceAnswerConfirmation
 import java.io.BufferedInputStream
 import java.io.DataInputStream
 import java.io.File
@@ -390,7 +391,7 @@ actual class SpeechEngine actual constructor() {
                     "麦克风未进入收音状态"
                 }
                 mainHandler.post {
-                    if (listenTokenGen.get() == myListenToken && isListeningActive.get()) {
+                    if (listenTokenGen.get() == myListenToken) {
                         onListeningReady()
                     }
                 }
@@ -399,6 +400,7 @@ actual class SpeechEngine actual constructor() {
                 val frameShorts = ShortArray(480)
                 var speechDetectedTriggered = false
                 var delivered = false
+                val confirmation = VoiceAnswerConfirmation()
 
                 while (isListeningActive.get() && !delivered && listenTokenGen.get() == myListenToken) {
                     val readCount = audioRecord.read(frameShorts, 0, frameShorts.size)
@@ -415,7 +417,7 @@ actual class SpeechEngine actual constructor() {
                         if (rms > SPEECH_RMS_THRESHOLD) {
                             speechDetectedTriggered = true
                             mainHandler.post {
-                                if (listenTokenGen.get() == myListenToken && isListeningActive.get()) {
+                                if (listenTokenGen.get() == myListenToken) {
                                     onSpeechDetected()
                                 }
                             }
@@ -432,14 +434,15 @@ actual class SpeechEngine actual constructor() {
                         if (!speechDetectedTriggered) {
                             speechDetectedTriggered = true
                             mainHandler.post {
-                                if (listenTokenGen.get() == myListenToken && isListeningActive.get()) {
+                                if (listenTokenGen.get() == myListenToken) {
                                     onSpeechDetected()
                                 }
                             }
                         }
-                        val number = NumberVoiceParser.parseSpokenNumber(
+                        val number = confirmation.observe(
                             listOf(extractedText),
-                            expectedAnswer
+                            isFinal = isFinal,
+                            nowMs = SystemClock.elapsedRealtime()
                         )
                         if (number != null) {
                             delivered = true
@@ -452,6 +455,8 @@ actual class SpeechEngine actual constructor() {
                             }
                             break
                         }
+                    } else {
+                        confirmation.observe(emptyList(), isFinal, SystemClock.elapsedRealtime())
                     }
                 }
             } catch (e: Exception) {

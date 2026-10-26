@@ -1,5 +1,6 @@
 package com.zly.mentalmath.speech
 
+import com.zly.mentalmath.domain.VoiceAnswerConfirmation
 import com.zly.mentalmath.domain.NumberVoiceParser
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCObjectVar
@@ -27,6 +28,7 @@ import platform.Foundation.NSLocale
 import platform.Foundation.NSError
 import platform.Foundation.NSLog
 import platform.Foundation.NSTimer
+import platform.Foundation.NSProcessInfo
 import platform.Foundation.dataWithBytes
 import platform.Foundation.dataWithContentsOfFile
 import platform.Speech.SFSpeechAudioBufferRecognitionRequest
@@ -148,6 +150,7 @@ actual class SpeechEngine actual constructor() {
     private var inputTapInstalled = false
     private var speakToken: Long = 0L
     private var listenToken: Long = 0L
+    private var finalizationTimer: NSTimer? = null
 
     init {
         ensureVoicePackLoaded()
@@ -256,6 +259,8 @@ actual class SpeechEngine actual constructor() {
         var hasDeliveredRecognition = false
         var hasTriggeredSpeechDetected = false
         var hasDeliveredReady = false
+        var audioInputEnded = false
+        val confirmation = VoiceAnswerConfirmation()
 
         val audioSession = AVAudioSession.sharedInstance()
         val sessionError = memScoped {
@@ -311,6 +316,8 @@ actual class SpeechEngine actual constructor() {
             dispatch_async(dispatch_get_main_queue()) {
                 if (hasDeliveredRecognition || listenToken != myListenToken) return@dispatch_async
                 if (result != null) {
+                    finalizationTimer?.invalidate()
+                    finalizationTimer = null
                     val rawString = result.bestTranscription.formattedString
                     if (rawString.isNotBlank()) {
                         if (!hasTriggeredSpeechDetected) {
@@ -318,9 +325,10 @@ actual class SpeechEngine actual constructor() {
                             onSpeechDetected()
                             if (listenToken != myListenToken) return@dispatch_async
                         }
-                        val parsed = NumberVoiceParser.parseSpokenNumber(
+                        val parsed = confirmation.observe(
                             listOf(rawString),
-                            expectedAnswer
+                            isFinal = result.isFinal(),
+                            nowMs = (NSProcessInfo.processInfo.systemUptime * 1000).toLong()
                         )
                         if (parsed != null) {
                             hasDeliveredRecognition = true
@@ -328,6 +336,32 @@ actual class SpeechEngine actual constructor() {
                             onRecognizedNumber(parsed, rawString)
                             return@dispatch_async
                         }
+                        if (!audioInputEnded && !result.isFinal() &&
+                            NumberVoiceParser.parseSpokenNumber(listOf(rawString)) != null) {
+                            // Apple may report a short word only once until endAudio().
+                            finalizationTimer = NSTimer.scheduledTimerWithTimeInterval(
+                                interval = VoiceAnswerConfirmation.STABLE_DURATION_MS / 1000.0,
+                                repeats = false
+                            ) {
+                                if (listenToken != myListenToken || hasDeliveredRecognition) {
+                                    return@scheduledTimerWithTimeInterval
+                                }
+                                finalizationTimer = null
+                                audioInputEnded = true
+                                if (audioEngine.isRunning()) audioEngine.stop()
+                                if (inputTapInstalled) {
+                                    audioEngine.inputNode.removeTapOnBus(0u)
+                                    inputTapInstalled = false
+                                }
+                                request.endAudio()
+                            }
+                        }
+                    } else {
+                        confirmation.observe(
+                            emptyList(),
+                            result.isFinal(),
+                            (NSProcessInfo.processInfo.systemUptime * 1000).toLong()
+                        )
                     }
                     if (result.isFinal() && !hasDeliveredRecognition) {
                         stopListeningInternal()
@@ -358,6 +392,8 @@ actual class SpeechEngine actual constructor() {
 
     private fun stopListeningInternal() {
         listenToken++
+        finalizationTimer?.invalidate()
+        finalizationTimer = null
         if (audioEngine.isRunning()) {
             audioEngine.stop()
         }

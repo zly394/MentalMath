@@ -12,7 +12,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
     for (const scenario of [
       "delayed-ready", "denied", "timeout", "exit", "switch", "keypad",
       "audio-handoff", "audio-failure",
-      "early-interim-3s", "late-interim-2s", "result-after-old-deadline"
+      "early-interim-3s", "late-interim-2s", "result-after-old-deadline",
+      "noise-rejection", "stable-answer", "changed-answer"
     ]) {
       const context = await browser.newContext({
         ignoreHTTPSErrors: true, serviceWorkers: "block",
@@ -83,7 +84,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
                     this.emit("speechstart");
                     this.emit("result", {
                       resultIndex: 0,
-                      results: [Object.assign([{ transcript: "一" }], { isFinal: false })]
+                      results: [Object.assign([{ transcript: "一" }], { isFinal: true })]
                     });
                   }, 500);
                 }, 2500);
@@ -94,11 +95,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
                 setTimeout(() => {
                   if (this.cancelled) return;
                   this.emit("audiostart");
-                  const result = text => {
+                  const result = (text, isFinal = false) => {
                     if (this.cancelled) return;
                     this.emit("result", {
                       resultIndex: 0,
-                      results: [Object.assign([{ transcript: text }], { isFinal: false })]
+                      results: [Object.assign([{ transcript: text }], { isFinal })]
                     });
                   };
                   setTimeout(() => {
@@ -107,8 +108,12 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
                     result("嗯");
                   }, mode === "late-interim-2s" ? 1500 : 300);
                   if (mode === "result-after-old-deadline") {
-                    setTimeout(() => result("一"), 2300);
+                    setTimeout(() => result("一", true), 2300);
                   }
+                }, 30);
+              } else if (["noise-rejection", "stable-answer", "changed-answer"].includes(mode)) {
+                setTimeout(() => {
+                  if (!this.cancelled) this.emit("audiostart");
                 }, 30);
               } else if (mode === "audio-handoff" || mode === "audio-failure") {
                 setTimeout(() => {
@@ -190,6 +195,45 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
             assert.equal(recorded.filter(item => item.event === "countdown_start").length, 1);
             assert.ok(recorded.find(item => item.event === "listening_ready").at -
               recorded.find(item => item.event === "listening_preparing").at >= 2400);
+          } else if (["noise-rejection", "stable-answer", "changed-answer"].includes(scenario)) {
+            await waitEvent("listening_ready");
+            const emit = (text, isFinal = false) => page.evaluate(({ text, isFinal }) => {
+              window.testRecognizers[0].emit("result", {
+                resultIndex: 0,
+                results: [Object.assign([{ transcript: text }], { isFinal })]
+              });
+            }, { text, isFinal });
+            if (scenario === "noise-rejection") {
+              await emit("啊", true);
+              await emit("我", true);
+              await emit("是", true);
+              await emit("八");
+              await emit("");
+              await page.waitForTimeout(220);
+              assert.equal((await events()).some(item => item.event === "question_settled"), false,
+                "noise and one transient digit must not submit an answer");
+              await emit("八", true);
+            } else if (scenario === "stable-answer") {
+              await emit("八");
+              await page.waitForTimeout(100);
+              await emit("八");
+              assert.equal((await events()).some(item => item.event === "question_settled"), false);
+              await page.waitForTimeout(100);
+              await emit("八");
+            } else {
+              await emit("四");
+              await page.waitForTimeout(120);
+              await emit("十");
+              await page.waitForTimeout(100);
+              await emit("十");
+              assert.equal((await events()).some(item => item.event === "question_settled"), false,
+                "changing the candidate must restart the stability window");
+              await emit("八", true);
+            }
+            await waitEvent("question_settled");
+            const recorded = await events();
+            assert.equal(recorded.filter(item => item.event === "number_parsed").length, 1);
+            assert.equal(recorded.some(item => item.event === "recognition_wait_timeout"), false);
           } else if (scenario === "denied") {
             await waitEvent("recognition_failure");
             await waitEvent("countdown_start");

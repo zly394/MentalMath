@@ -337,7 +337,7 @@ test('runtime model errors end active recognition and release capture', async ()
   assert.equal(env.stoppedTracks(), 1);
 });
 
-test('interim/final results remove word spaces, ignore unknowns and acknowledge queued audio', async () => {
+test('interim/final results clear unknown hypotheses, remove spaces and acknowledge queued audio', async () => {
   const env = environment();
   const recognition = await env.start();
   const results = [];
@@ -346,11 +346,13 @@ test('interim/final results remove word spaces, ignore unknowns and acknowledge 
   env.recognizers[0].emit('partialresult', { result: { partial: '[unk]' } });
   env.recognizers[0].emit('partialresult', { result: { partial: '十 ' } });
   env.recognizers[0].emit('result', { result: { text: '一 十' } });
-  assert.equal(results.length, 2);
-  assert.equal(results[0][0].transcript, '十');
+  assert.equal(results.length, 3);
+  assert.equal(results[0][0].transcript, '');
   assert.equal(results[0].isFinal, false);
-  assert.equal(results[1][0].transcript, '一十');
-  assert.equal(results[1].isFinal, true);
+  assert.equal(results[1][0].transcript, '十');
+  assert.equal(results[1].isFinal, false);
+  assert.equal(results[2][0].transcript, '一十');
+  assert.equal(results[2].isFinal, true);
   assert.equal(recognition.pending, 0);
 });
 
