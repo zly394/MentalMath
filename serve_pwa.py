@@ -44,7 +44,7 @@ EVENT_NAMES = {
     "recognition_wait_timeout", "voice_detected", "number_parsed",
     "recognition_failure", "question_settled",
     "listening_preparing", "listening_ready", "listening_start_timeout",
-    "audio_session", "recognition_release_wait", "playback_start", "playback_done",
+    "audio_session", "audio_background_pause", "recognition_release_wait", "playback_start", "playback_done",
     "playback_failure", "playback_suspend_start", "playback_suspended",
     "offline_model_loading", "offline_model_ready", "offline_model_error",
     "offline_capture_started", "offline_capture_error",
