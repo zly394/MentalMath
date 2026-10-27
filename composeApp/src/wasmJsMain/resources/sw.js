@@ -6,9 +6,9 @@ self.addEventListener('install', event => {
     if (!response.ok) throw new Error(`Asset manifest: HTTP ${response.status}`);
     const assets = await response.json();
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(assets);
+    await cache.addAll(assets.map(asset => new Request(asset, { cache: 'reload' })));
   })());
-  self.skipWaiting();
+  // Wait for existing pages to close so an app never mixes release resources.
 });
 
 self.addEventListener('activate', event => {
@@ -18,7 +18,6 @@ self.addEventListener('activate', event => {
       keys.filter(key => key.startsWith('mentalmath-pwa-') && key !== CACHE_NAME)
         .map(key => caches.delete(key))
     );
-    await self.clients.claim();
   })());
 });
 
@@ -30,21 +29,25 @@ self.addEventListener('fetch', event => {
   if (url.pathname.endsWith('/vosk-model-cn.tar.gz')) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(event.request);
+    if (cached) return cached;
+    if (event.request.mode === 'navigate') {
+      const index = await cache.match('./index.html');
+      if (index) return index;
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(event.request);
+      const response = await fetch(event.request, { signal: controller.signal });
       if (response.ok) {
         await cache.put(event.request, response.clone());
       }
       return response;
     } catch (error) {
-      const cached = await cache.match(event.request);
-      if (cached) return cached;
-      if (event.request.mode === 'navigate') {
-        const index = await cache.match('./index.html');
-        if (index) return index;
-      }
       console.error('Offline resource unavailable:', event.request.url, error);
       return Response.error();
+    } finally {
+      clearTimeout(timeout);
     }
   })());
 });

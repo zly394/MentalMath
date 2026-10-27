@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.text.font.FontFamily
@@ -24,14 +25,19 @@ private fun logFontError(message: String): Unit = js("console.error(message)")
 private fun recordSpeechDiagnostic(event: String, detail: String): Unit =
     js("globalThis.mentalMathDiagnostics?.record(event, detail)")
 private fun logFontReady(): Unit = js("console.log('>>> [MentalMath] Custom font successfully preloaded!')")
+private fun startupRendering(): Unit = js("window.mentalMathStartup?.rendering()")
+private fun startupReady(): Unit = js("window.mentalMathStartup?.ready()")
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
+    startupRendering()
     SpeechDiagnostics.listener = ::recordSpeechDiagnostic
     val app = document.getElementById("app") ?: error("Application container is unavailable")
     ComposeViewport(app) {
         LaunchedEffect(Unit) {
-            document.getElementById("boot-status")?.remove()
+            withFrameNanos { }
+            withFrameNanos { }
+            startupReady()
         }
         var cnFontFamily by remember { mutableStateOf<FontFamily?>(null) }
         val fontFamilyResolver = LocalFontFamilyResolver.current

@@ -56,11 +56,8 @@
         #offline-status #offline-status-close { position: absolute; top: 0; right: 0; width: 44px; font-size: 24px; }
         #offline-status #offline-status-retry { padding: 0; font-weight: 600; }
     </style>
-    <script src="offline-speech.js"></script>
-    <script src="speech.js"></script>
 </head>
 <body>
-    <script src="speech-diagnostics.js"></script>
     <div id="app"></div>
     <aside id="offline-status" role="status" aria-live="polite" aria-atomic="true" hidden>
         <strong id="offline-status-title"></strong>
@@ -69,26 +66,17 @@
         <button id="offline-status-retry" type="button" hidden>重试加载</button>
         <button id="offline-status-close" type="button" aria-label="收起离线加载提示">×</button>
     </aside>
-    <script src="offline-status.js"></script>
     <div id="boot-status" role="status" style="position:fixed;inset:0;display:grid;place-content:center;padding:24px;font-family:sans-serif;z-index:1000;background:#F8FAFC">
-        正在加载口算特训……
+        <strong id="boot-title">正在获取启动程序……</strong>
+        <p id="boot-detail">正在准备应用资源。</p>
+        <button id="boot-retry" type="button" hidden style="min-height:44px">重新加载</button>
     </div>
+    <script src="startup.js"></script>
+    <script defer src="offline-speech.js"></script>
+    <script defer src="speech.js"></script>
+    <script defer src="speech-diagnostics.js"></script>
+    <script defer src="offline-status.js"></script>
     <script>
-        function showStartupError(error) {
-            console.error('Application startup failed:', error);
-            let status = document.getElementById('boot-status');
-            if (!status) {
-                status = document.createElement('div');
-                status.id = 'boot-status';
-                status.style.cssText = 'position:fixed;inset:0;display:grid;place-content:center;padding:24px;font-family:sans-serif;z-index:1000;background:#F8FAFC';
-                document.body.appendChild(status);
-            }
-            status.setAttribute('role', 'alert');
-            status.textContent = '启动失败，请使用新版浏览器，并确认完整部署了所有 JS/WASM 文件。错误：' +
-                (error && error.message ? error.message : String(error));
-        }
-        window.addEventListener('error', event => showStartupError(event.error || event.message));
-        window.addEventListener('unhandledrejection', event => showStartupError(event.reason));
         if (window.isSecureContext && 'serviceWorker' in navigator) {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('./sw.js').catch(function (error) {
@@ -97,6 +85,6 @@
             });
         }
     </script>
-    <script src="mentalmath.js" onerror="showStartupError(new Error('mentalmath.js 加载失败'))"></script>
+    <script defer src="mentalmath.js" onload="window.mentalMathStartup?.programLoaded()" onerror="window.showStartupError?.(new Error('mentalmath.js 加载失败'))"></script>
 </body>
 </html>
