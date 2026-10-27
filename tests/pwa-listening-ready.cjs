@@ -13,8 +13,9 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
       "delayed-ready", "denied", "timeout", "exit", "switch", "keypad",
       "audio-handoff", "audio-failure",
       "early-interim-3s", "late-interim-2s", "result-after-old-deadline",
-      "noise-rejection", "stable-answer", "changed-answer"
-    ]) {
+      "noise-rejection", "stable-answer", "changed-answer",
+      "background-resume", "background-feedback"
+    ].filter(scenario => !process.env.PWA_TEST_SCENARIO || scenario === process.env.PWA_TEST_SCENARIO)) {
       const context = await browser.newContext({
         ignoreHTTPSErrors: true, serviceWorkers: "block",
         viewport: { width: 390, height: 844 }
@@ -111,7 +112,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
                     setTimeout(() => result("一", true), 2300);
                   }
                 }, 30);
-              } else if (["noise-rejection", "stable-answer", "changed-answer"].includes(mode)) {
+              } else if (["noise-rejection", "stable-answer", "changed-answer",
+                "background-resume", "background-feedback"].includes(mode)) {
                 setTimeout(() => {
                   if (!this.cancelled) this.emit("audiostart");
                 }, 30);
@@ -195,6 +197,53 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
             assert.equal(recorded.filter(item => item.event === "countdown_start").length, 1);
             assert.ok(recorded.find(item => item.event === "listening_ready").at -
               recorded.find(item => item.event === "listening_preparing").at >= 2400);
+          } else if (["background-resume", "background-feedback"].includes(scenario)) {
+            await waitEvent("listening_ready");
+            if (scenario === "background-feedback") {
+              await page.evaluate(() => window.testRecognizers[0].emit("result", {
+                resultIndex: 0,
+                results: [Object.assign([{ transcript: "八" }], { isFinal: true })]
+              }));
+              await waitEvent("question_settled");
+            }
+            const before = await events();
+            const settled = before.filter(item => item.event === "question_settled").length;
+            const questions = before.filter(item => item.event === "question_start").length;
+            await page.evaluate(() => {
+              Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+              document.dispatchEvent(new Event("visibilitychange"));
+            });
+            await waitEvent("audio_background_pause");
+            await page.evaluate(() => {
+              const old = window.testRecognizers[0];
+              old.emit("audiostart");
+              old.emit("result", {
+                resultIndex: 0,
+                results: [Object.assign([{ transcript: "八" }], { isFinal: true })]
+              });
+            });
+            await page.waitForTimeout(3200);
+            assert.equal((await events()).filter(item => item.event === "question_settled").length, settled,
+              "background time must not submit a timeout or advance feedback: " +
+                JSON.stringify({ events: await events(), errors }));
+            assert.equal((await events()).filter(item => item.event === "question_start").length, questions);
+            assert.equal(await page.evaluate(() => MentalMathBrowserSpeech.audioContext), null);
+            await page.evaluate(() => {
+              Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+              document.dispatchEvent(new Event("visibilitychange"));
+            });
+            await page.waitForTimeout(100);
+            assert.equal((await events()).filter(item => item.event === "question_start").length, questions);
+            await page.mouse.click(195, 410);
+            await page.waitForFunction(count =>
+              window.testEvents.filter(item => item.event === "countdown_start").length === count + 1,
+              before.filter(item => item.event === "countdown_start").length);
+            assert.equal((await events()).filter(item => item.event === "question_settled").length, settled);
+            const resumed = (await events()).filter(item => item.event === "question_start").at(-1);
+            const previous = before.filter(item => item.event === "question_start").at(-1);
+            assert.equal(Number(resumed.detail), Number(previous.detail) +
+              (scenario === "background-feedback" ? 1 : 0));
+            assert.equal(await page.evaluate(() => MentalMathBrowserSpeech.audioContext.state), "running");
           } else if (["noise-rejection", "stable-answer", "changed-answer"].includes(scenario)) {
             await waitEvent("listening_ready");
             const emit = (text, isFinal = false) => page.evaluate(({ text, isFinal }) => {
@@ -300,15 +349,13 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE_PATH || "playwright-cor
             assert.equal(await page.evaluate(() => navigator.audioSession.type), "auto");
           } else if (scenario === "audio-failure") {
             await waitEvent("playback_failure");
-            await page.waitForFunction(() =>
-              window.testEvents.filter(item => item.event === "countdown_start").length === 2);
+            await page.waitForTimeout(200);
+            assert.equal((await events()).filter(item => item.event === "countdown_start").length, 1);
             assert.equal(await page.evaluate(() => window.testRecognizers.length), 1);
             assert.equal(await page.evaluate(() => navigator.audioSession.type), "auto");
             assert.equal(await page.evaluate(() =>
               window.testAudioOperations.filter(item => item.event === "playback_start").length), 1);
-            await page.mouse.click(55, 660);
-            await page.waitForFunction(() =>
-              window.testEvents.filter(item => item.event === "question_settled").length === 2);
+            assert.equal((await events()).filter(item => item.event === "question_settled").length, 1);
           }
         }
         assert.deepEqual(errors, []);

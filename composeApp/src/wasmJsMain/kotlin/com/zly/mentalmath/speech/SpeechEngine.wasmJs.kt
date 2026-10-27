@@ -11,6 +11,8 @@ private fun installOfflineVosk(module: JsAny): Unit =
 private fun monotonicTimeMs(): Double = js("performance.now()")
 
 private external class MentalMathBrowserSpeech : JsAny {
+    fun prepareFromGesture()
+    fun setPauseListener(listener: () -> Unit)
     fun hasRecordPermission(): Boolean
     fun requestRecordPermission(onResult: (Boolean) -> Unit)
     fun setVoiceMode(enabled: Boolean)
@@ -31,6 +33,11 @@ actual class SpeechEngine actual constructor() {
     }
 
     private val browser = MentalMathBrowserSpeech()
+
+    init {
+        SpeechLifecycle.prepareFromGesture = { browser.prepareFromGesture() }
+        browser.setPauseListener { SpeechLifecycle.onPause?.invoke() }
+    }
 
     actual fun hasRecordPermission(): Boolean = browser.hasRecordPermission()
 

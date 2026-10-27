@@ -49,9 +49,24 @@ fun PracticeScreen(
     onToggleInputMode: (InputMode) -> Unit,
     onKeypadSubmit: (Int) -> Unit,
     onRestartSession: () -> Unit,
+    onResumeSession: () -> Unit,
     onOpenAnalysis: () -> Unit,
     onExit: () -> Unit
 ) {
+    if (state.isPaused) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(state.voiceHint, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onResumeSession) { Text("点击继续") }
+            OutlinedButton(onClick = onExit) { Text("返回首页") }
+        }
+        return
+    }
+
     if (isStarting) {
         Box(
             modifier = Modifier.fillMaxSize(),

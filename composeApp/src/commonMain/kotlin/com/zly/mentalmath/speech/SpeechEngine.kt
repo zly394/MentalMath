@@ -23,7 +23,7 @@ expect class SpeechEngine() {
 
     /**
      * 极速播报文本（如 "3加5"），播报完成（或模拟器无 TTS 时自动兜底）回调 [onDone]。
-     * Web 等待上一轮识别结束后播报，音频准备失败时通过 [onError] 提示并回退按键。
+     * Web 等待上一轮识别结束后播报，音频准备失败时通过 [onError] 暂停并提示点击重试。
      */
     fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit)
 

@@ -21,6 +21,7 @@ import com.zly.mentalmath.data.MathRepository
 import com.zly.mentalmath.model.QuestionMode
 import com.zly.mentalmath.navigation.PlatformBackHandler
 import com.zly.mentalmath.speech.SpeechEngine
+import com.zly.mentalmath.speech.SpeechLifecycle
 import com.zly.mentalmath.ui.AnalysisScreen
 import com.zly.mentalmath.ui.HomeScreen
 import com.zly.mentalmath.ui.PracticeScreen
@@ -116,10 +117,12 @@ fun App(customFontFamily: FontFamily? = null) {
                             onSelectTimeLimit = viewModel::updateTimeLimit,
                             onSelectInputMode = viewModel::updateInputMode,
                             onStartPractice = {
+                                SpeechLifecycle.prepareFromGesture?.invoke()
                                 practiceLaunch = PracticeLaunch(overrideMode = null)
                                 currentRoute = AppRoute.PRACTICE
                             },
                             onStartMistakeReview = {
+                                SpeechLifecycle.prepareFromGesture?.invoke()
                                 practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
                                 currentRoute = AppRoute.PRACTICE
                             },
@@ -136,7 +139,12 @@ fun App(customFontFamily: FontFamily? = null) {
                             onToggleInputMode = viewModel::updateInputMode,
                             onKeypadSubmit = viewModel::submitKeypadAnswer,
                             onRestartSession = {
+                                SpeechLifecycle.prepareFromGesture?.invoke()
                                 viewModel.startSession()
+                            },
+                            onResumeSession = {
+                                SpeechLifecycle.prepareFromGesture?.invoke()
+                                viewModel.resumeSession()
                             },
                             onOpenAnalysis = {
                                 viewModel.stopSession()
@@ -155,6 +163,7 @@ fun App(customFontFamily: FontFamily? = null) {
                             statsMap = statsMap,
                             sessions = sessions,
                             onStartMistakePractice = {
+                                SpeechLifecycle.prepareFromGesture?.invoke()
                                 practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
                                 currentRoute = AppRoute.PRACTICE
                             },

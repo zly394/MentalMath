@@ -11,7 +11,7 @@ const pack = fs.readFileSync(path.join(root, 'composeApp', 'src', 'androidMain',
 function environment({
   secure = true, packAvailable = true, audioSession = true, deferredEnd = false,
   audioState = 'running', resumeError = false, manualTimers = false,
-  search = '?speechEngine=browser', offlinePreload, packGate, prepareGate, microphone
+  search = '?speechEngine=browser', offlinePreload, packGate, prepareGate, microphone, resumeGate
 } = {}) {
   const sources = [];
   const recognitions = [];
@@ -39,8 +39,13 @@ function environment({
     }
     async resume() {
       operations.push('resume');
+      if (resumeGate) await resumeGate;
       if (resumeError) throw new Error('Audio resume failed');
       this.state = 'running';
+    }
+    async close() {
+      this.state = 'closed';
+      operations.push('context-close');
     }
     createBuffer(channels, count, sampleRate) {
       return { duration: count / sampleRate, getChannelData: () => new Float32Array(count) };
@@ -77,8 +82,8 @@ function environment({
       const timer = { callback, delay, cancelled: false };
       timers.push(timer);
       return timer;
-    } : setTimeout,
-    clearTimeout: manualTimers ? timer => { timer.cancelled = true; } : clearTimeout,
+    } : (callback, delay) => setTimeout(callback, delay).unref(),
+    clearTimeout: manualTimers ? timer => { if (timer) timer.cancelled = true; } : clearTimeout,
     fetch: async () => {
       if (packGate) await packGate;
       return ({
@@ -119,6 +124,9 @@ function environment({
       speak(utterance) { utterances.push(utterance); }
     }
   };
+  context.document = new EventTarget();
+  context.document.visibilityState = 'visible';
+  context.window.addEventListener = (...args) => context.document.addEventListener(...args);
   if (offlinePreload) {
     context.MentalMathOfflineRecognition = class {
       static preload = offlinePreload;
@@ -152,6 +160,132 @@ test('offline model preparation begins on the homepage without audio or micropho
   assert.equal(env.audioContext(), null);
   assert.equal(env.trackStopped(), false);
   assert.equal(env.recognitions.length, 0);
+});
+
+test('gesture recovery resumes before deferred navigation without starting playback or capture', async () => {
+  const env = environment({ audioState: 'suspended', manualTimers: true });
+  await env.ready;
+  env.engine.prepareFromGesture();
+  assert.ok(env.operations.includes('resume'));
+  assert.equal(env.sources.length, 0);
+  assert.equal(env.operations.includes('microphone-open'), false);
+  await env.engine.speak('三加五', () => {}, assert.fail);
+  assert.equal(env.sources.length, 1);
+  assert.equal(env.operations.filter(item => item === 'resume').length, 1);
+  env.engine.release();
+});
+
+test('background pause releases capture and replaces context without reloading the voice pack', async () => {
+  const env = environment({ manualTimers: true, prepareGate: Promise.resolve(), search: '' });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  await env.engine.speak('三加五', assert.fail, assert.fail);
+  const old = env.audioContext();
+  const pack = env.context.MentalMathBrowserSpeech.pack;
+  let pauses = 0;
+  env.engine.setPauseListener(() => pauses++);
+  const ended = env.sources[0].onended;
+  env.context.document.visibilityState = 'hidden';
+  env.context.document.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(pauses, 1);
+  assert.equal(env.trackStopped(), true);
+  assert.equal(old.state, 'closed');
+  assert.equal(env.audioContext(), null);
+  ended();
+  env.engine.prepareFromGesture();
+  assert.notEqual(env.audioContext(), old);
+  assert.equal(env.context.MentalMathBrowserSpeech.pack, pack);
+  env.engine.release();
+});
+
+test('hung audio resume reports a bounded error and discards the broken context', async () => {
+  let resume;
+  const env = environment({
+    audioState: 'suspended', manualTimers: true,
+    resumeGate: new Promise(resolve => { resume = resolve; })
+  });
+  await env.ready;
+  const failures = [];
+  env.engine.prepareFromGesture();
+  const old = env.audioContext();
+  const playback = env.engine.speak('三加五', assert.fail, error => failures.push(error));
+  env.timers.find(timer => timer.delay === 5000).callback();
+  await playback;
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /音频恢复超时/);
+  assert.equal(env.audioContext(), null);
+  assert.equal(env.sources.length, 0);
+  resume();
+  await Promise.resolve();
+  assert.notEqual(env.audioContext(), old);
+  env.engine.prepareFromGesture();
+  await env.engine.speak('三加五', () => {}, assert.fail);
+  assert.equal(env.sources.length, 1);
+  assert.notEqual(env.audioContext(), old);
+  env.engine.release();
+});
+
+test('closed audio contexts are replaced before a new gesture resumes playback', async () => {
+  const env = environment({ manualTimers: true });
+  await env.ready;
+  const old = env.engine.audioContext();
+  await old.close();
+  env.engine.prepareFromGesture();
+  await env.engine.speak('三加五', () => {}, assert.fail);
+  assert.notEqual(env.audioContext(), old);
+  assert.equal(env.sources.length, 1);
+  env.engine.release();
+});
+
+test('hung capture module preparation times out and cannot play after cancellation', async () => {
+  let prepared;
+  const env = environment({
+    manualTimers: true, search: '',
+    prepareGate: new Promise(resolve => { prepared = resolve; })
+  });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  const failures = [];
+  const playback = env.engine.speak('三加五', assert.fail, error => failures.push(error));
+  while (!env.timers.some(timer => timer.delay === 100000)) await Promise.resolve();
+  env.timers.find(timer => timer.delay === 100000).callback();
+  await playback;
+  assert.equal(failures.length, 1);
+  assert.equal(env.trackStopped(), true);
+  prepared();
+  await Promise.resolve();
+  assert.equal(env.sources.length, 0);
+});
+
+test('microphone timeout releases a late permission stream without starting stale playback', async () => {
+  let grant;
+  const env = environment({
+    manualTimers: true, prepareGate: Promise.resolve(), search: '',
+    microphone: stream => new Promise(resolve => { grant = () => resolve(stream); })
+  });
+  await env.ready;
+  env.engine.setVoiceMode(true);
+  const failures = [];
+  const playback = env.engine.speak('三加五', assert.fail, error => failures.push(error));
+  while (!grant) await Promise.resolve();
+  env.timers.find(timer => timer.delay === 15000 && !timer.cancelled).callback();
+  await playback;
+  assert.equal(failures.length, 1);
+  grant();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(env.trackStopped(), true);
+  assert.equal(env.sources.length, 0);
+});
+
+test('missing playback completion reports an error instead of hanging the question', async () => {
+  const env = environment({ manualTimers: true });
+  await env.ready;
+  const failures = [];
+  await env.engine.speak('三加五', assert.fail, error => failures.push(error));
+  env.timers.find(timer => !timer.cancelled && timer.delay > 5000 && timer.delay < 15000).callback();
+  assert.equal(failures.length, 1);
+  assert.equal(env.audioContext(), null);
 });
 
 test('homepage preload errors are logged without blocking the app', async () => {
@@ -511,10 +645,8 @@ test('microphone release timeout reports a playback error instead of playing ove
   await env.engine.startListening(() => {}, () => {}, () => false, assert.fail);
   const errors = [];
   const playback = env.engine.speak('三加五', assert.fail, error => errors.push(error));
-  await Promise.resolve();
-  assert.equal(env.timers.length, 1);
-  assert.equal(env.timers[0].delay, 3000);
-  env.timers[0].callback();
+  while (!env.timers.some(timer => timer.delay === 3000)) await Promise.resolve();
+  env.timers.find(timer => timer.delay === 3000).callback();
   await playback;
   assert.equal(errors.length, 1);
   assert.match(String(env.errors[0]), /Microphone release timed out/);
@@ -527,9 +659,9 @@ test('a late timeout after exit cannot report an error to the old question', asy
   await env.ready;
   await env.engine.startListening(() => {}, () => {}, () => false, assert.fail);
   const playback = env.engine.speak('三加五', assert.fail, assert.fail);
+  while (!env.timers.some(timer => timer.delay === 3000)) await Promise.resolve();
   env.engine.stopAll();
-  await Promise.resolve();
-  env.timers[0].callback();
+  env.timers.find(timer => timer.delay === 3000).callback();
   await playback;
   assert.equal(env.sources.length, 0);
   env.recognitions[0].onend();
@@ -550,8 +682,9 @@ test('capture starts in a recording session only after audible playback completi
   env.sources[0].onended();
   assert.equal(env.context.navigator.audioSession.type, 'play-and-record');
   assert.equal(env.recognitions.length, 0);
-  assert.ok(Math.abs(env.timers[0].delay - 200) < 0.01);
-  await env.timers[0].callback();
+  const drain = env.timers.find(timer => !timer.cancelled && Math.abs(timer.delay - 200) < 0.01);
+  assert.ok(drain);
+  await drain.callback();
   await listening;
   assert.equal(env.operations.includes('suspend-start'), false);
   assert.equal(env.context.navigator.audioSession.type, 'play-and-record');
@@ -569,8 +702,9 @@ test('output latency provides a measured drain delay without timestamp support',
   context.outputLatency = 0.08;
   env.sources[0].onended();
   assert.equal(done, false);
-  assert.ok(Math.abs(env.timers[0].delay - 90) < 0.01);
-  await env.timers[0].callback();
+  const drain = env.timers.find(timer => !timer.cancelled && Math.abs(timer.delay - 90) < 0.01);
+  assert.ok(drain);
+  await drain.callback();
   assert.equal(done, true);
 });
 
@@ -583,7 +717,7 @@ test('exiting while audio drains cannot start listening for the old question', a
   context.outputLatency = 0.08;
   env.sources[0].onended();
   env.engine.release();
-  env.timers[0].callback();
+  env.timers.find(timer => !timer.cancelled && timer.delay < 1000).callback();
   assert.equal(env.context.navigator.audioSession.type, 'auto');
 });
 
@@ -687,7 +821,7 @@ test('release during output drain cannot restore the voice session from an old c
   env.audioContext().outputLatency = 0.1;
   env.sources[0].onended();
   env.engine.release();
-  env.timers[0].callback();
+  env.timers.find(timer => timer.delay < 1000 && !timer.cancelled).callback();
   assert.equal(env.recognitions.length, 0);
   assert.equal(env.context.navigator.audioSession.type, 'auto');
 });

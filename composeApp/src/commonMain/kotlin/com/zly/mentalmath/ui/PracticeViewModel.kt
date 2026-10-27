@@ -12,6 +12,7 @@ import com.zly.mentalmath.model.QuestionMode
 import com.zly.mentalmath.model.TimeLimitOption
 import com.zly.mentalmath.speech.SpeechDiagnostics
 import com.zly.mentalmath.speech.SpeechEngine
+import com.zly.mentalmath.speech.SpeechLifecycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,6 +43,7 @@ enum class QuestionPhase {
 data class PracticeUiState(
     val config: PracticeConfig = PracticeConfig(),
     val isPracticing: Boolean = false,
+    val isPaused: Boolean = false,
     val currentIndex: Int = 0,
     val currentQuestion: Question? = null,
     val phase: QuestionPhase = QuestionPhase.SPEAKING,
@@ -70,12 +72,51 @@ class PracticeViewModel(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var timerJob: Job? = null
+    private var feedbackJob: Job? = null
     private var questionStartTimeMs: Long = 0L
     private var currentQuestionSettled: Boolean = false
     private var activeQuestionToken: Long = 0L
+    private var sessionRequestToken = 0L
+    private var pendingSessionConfig: PracticeConfig? = null
 
     private val _uiState = MutableStateFlow(PracticeUiState())
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
+    private val pauseListener: () -> Unit = { pauseSession() }
+
+    init {
+        SpeechLifecycle.onPause = pauseListener
+    }
+
+    private fun pauseSession() {
+        sessionRequestToken++
+        pendingSessionConfig?.let { config ->
+            _uiState.value = PracticeUiState(config = config, isPracticing = true)
+            currentQuestionSettled = false
+        }
+        if (!_uiState.value.isPracticing || _uiState.value.phase == QuestionPhase.SESSION_SUMMARY) return
+        activeQuestionToken++
+        timerJob?.cancel()
+        feedbackJob?.cancel()
+        speechEngine.release()
+        _uiState.update { it.copy(isPaused = true, voiceHint = "训练已暂停，点击继续恢复音频并答题") }
+    }
+
+    fun resumeSession() {
+        val state = _uiState.value
+        if (!state.isPaused || !state.isPracticing) return
+        _uiState.update { it.copy(isPaused = false) }
+        if (pendingSessionConfig != null) {
+            startSession()
+            return
+        }
+        speechEngine.setVoiceMode(state.config.inputMode == InputMode.VOICE)
+        if (currentQuestionSettled) {
+            advanceOrFinish()
+        } else {
+            val question = state.currentQuestion ?: return
+            speakQuestion(state.currentIndex, question)
+        }
+    }
 
     fun updateQuestionMode(mode: QuestionMode) {
         _uiState.update { it.copy(config = it.config.copy(questionMode = mode)) }
@@ -95,7 +136,9 @@ class PracticeViewModel(
         if (prev == mode) return
 
         if (mode == InputMode.VOICE && !speechEngine.hasRecordPermission()) {
+            val token = activeQuestionToken
             speechEngine.requestRecordPermission { granted ->
+                if (token != activeQuestionToken) return@requestRecordPermission
                 val targetMode = if (granted) InputMode.VOICE else InputMode.KEYPAD
                 applyInputModeSwitch(targetMode, if (!granted) "未授予麦克风权限，已保持按键模式" else "")
             }
@@ -133,6 +176,7 @@ class PracticeViewModel(
      * 开始新一轮训练
      */
     fun startSession(overrideMode: QuestionMode? = null) {
+        val requestToken = ++sessionRequestToken
         val currentConfig = _uiState.value.config
         val finalConfig = if (overrideMode != null) {
             currentConfig.copy(questionMode = overrideMode)
@@ -141,10 +185,14 @@ class PracticeViewModel(
         }
 
         if (finalConfig.inputMode == InputMode.VOICE && !speechEngine.hasRecordPermission()) {
+            pendingSessionConfig = finalConfig
             speechEngine.requestRecordPermission { granted ->
+                if (requestToken != sessionRequestToken) return@requestRecordPermission
+                pendingSessionConfig = null
                 val actualConfig = if (granted) {
                     finalConfig
                 } else {
+                    pendingSessionConfig = null
                     finalConfig.copy(inputMode = InputMode.KEYPAD)
                 }
                 launchSessionInternal(
@@ -160,6 +208,7 @@ class PracticeViewModel(
     private fun launchSessionInternal(config: PracticeConfig, initialHint: String) {
         SpeechDiagnostics.record("session_start", config.inputMode.name)
         timerJob?.cancel()
+        feedbackJob?.cancel()
         speechEngine.stopAll()
         speechEngine.setVoiceMode(config.inputMode == InputMode.VOICE)
         _uiState.value = PracticeUiState(
@@ -176,17 +225,29 @@ class PracticeViewModel(
      * 退出当前训练返回首页（彻底释放常驻麦克风硬件流）
      */
     fun stopSession() {
+        sessionRequestToken++
+        pendingSessionConfig = null
         SpeechDiagnostics.record("session_stop")
         activeQuestionToken++
         timerJob?.cancel()
+        feedbackJob?.cancel()
         speechEngine.release()
-        _uiState.update { it.copy(isPracticing = false) }
+        _uiState.update { it.copy(isPracticing = false, isPaused = false) }
     }
 
     /**
      * 加载第 [index] 题并极速播报纯算式（如 "六加二"，不带“等于”）
      */
     private fun loadAndSpeakQuestion(index: Int, lastQuestion: Question?) {
+        val nextQ = QuestionGenerator.nextQuestion(
+            config = _uiState.value.config,
+            statsMap = repository.statsMap.value,
+            lastQuestion = lastQuestion
+        )
+        speakQuestion(index, nextQ)
+    }
+
+    private fun speakQuestion(index: Int, nextQ: Question) {
         SpeechDiagnostics.record("question_start", index.toString())
         val token = ++activeQuestionToken
         timerJob?.cancel()
@@ -195,12 +256,6 @@ class PracticeViewModel(
         questionStartTimeMs = 0L
 
         val config = _uiState.value.config
-        val nextQ = QuestionGenerator.nextQuestion(
-            config = config,
-            statsMap = repository.statsMap.value,
-            lastQuestion = lastQuestion
-        )
-
         _uiState.update {
             it.copy(
                 currentIndex = index,
@@ -214,7 +269,12 @@ class PracticeViewModel(
 
         speechEngine.speak(nextQ.spokenQuestion, onError = { reason ->
             if (_uiState.value.isPracticing && !currentQuestionSettled && token == activeQuestionToken) {
-                fallbackToKeypad(token, "$reason，已切换按键模式，请看题作答")
+                if (SpeechLifecycle.prepareFromGesture != null) {
+                    pauseSession()
+                    _uiState.update { it.copy(voiceHint = "$reason，请点击继续重试，或返回首页切换按键模式") }
+                } else {
+                    fallbackToKeypad(token, "$reason，已切换按键模式，请看题作答")
+                }
             }
         }) {
             if (!_uiState.value.isPracticing || currentQuestionSettled || token != activeQuestionToken) return@speak
@@ -379,7 +439,7 @@ class PracticeViewModel(
     fun submitKeypadAnswer(answer: Int) {
         val state = _uiState.value
         val question = state.currentQuestion ?: return
-        if (currentQuestionSettled) return
+        if (currentQuestionSettled || state.isPaused) return
         if (state.phase != QuestionPhase.COUNTDOWN &&
             state.phase != QuestionPhase.SPEECH_DETECTED &&
             state.phase != QuestionPhase.PREPARING_LISTENING &&
@@ -448,7 +508,7 @@ class PracticeViewModel(
             )
         }
 
-        scope.launch {
+        feedbackJob = scope.launch {
             val feedbackDurationMs = if (outcome == AnswerOutcome.CORRECT) 500L else 950L
             delay(feedbackDurationMs)
             advanceOrFinish()
@@ -457,7 +517,7 @@ class PracticeViewModel(
 
     private fun advanceOrFinish() {
         val state = _uiState.value
-        if (!state.isPracticing) return
+        if (!state.isPracticing || state.isPaused) return
         val nextIndex = state.currentIndex + 1
         if (nextIndex >= state.config.totalQuestions) {
             speechEngine.release()
@@ -469,7 +529,11 @@ class PracticeViewModel(
     }
 
     fun clear() {
+        sessionRequestToken++
+        activeQuestionToken++
+        if (SpeechLifecycle.onPause === pauseListener) SpeechLifecycle.onPause = null
         timerJob?.cancel()
+        feedbackJob?.cancel()
         speechEngine.release()
         scope.cancel()
     }
