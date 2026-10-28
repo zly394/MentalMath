@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,88 +94,138 @@ fun PracticeScreen(
 
     val question = state.currentQuestion ?: return
 
+    val isVoice = state.config.inputMode == InputMode.VOICE
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isPad = maxWidth >= 600.dp
 
-        if (isPad) {
-            // Pad / 平板端：顶栏 + 下方左右双栏人体工学布局（左算式黑板，右超大数字键盘）
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+        if (isVoice) {
+            // 🎙 纯语音护眼沉浸模式（无键盘干扰，超大字号远距可见，让耳朵替代眼睛）
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
-                PracticeTopHeader(
-                    state = state,
-                    onExit = onExit,
-                    onToggleInputMode = onToggleInputMode
-                )
-
-                Row(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxSize()
+                        .widthIn(max = 920.dp)
+                        .padding(
+                            horizontal = if (isPad) 28.dp else 16.dp,
+                            vertical = if (isPad) 20.dp else 12.dp
+                        ),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // 左栏：超大算式黑板卡片
+                    PracticeTopHeader(
+                        state = state,
+                        onExit = onExit,
+                        onToggleInputMode = onToggleInputMode
+                    )
+
                     Box(
                         modifier = Modifier
-                            .weight(0.52f)
-                            .fillMaxHeight(),
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        QuestionBlackboardCard(
+                        VoiceEyesFreeBlackboardCard(
                             state = state,
                             question = question,
-                            isPad = true
+                            isPad = isPad
                         )
                     }
 
-                    // 右栏：模式状态条 + 4 列严格对齐大数字键盘
-                    Column(
-                        modifier = Modifier
-                            .weight(0.48f)
-                            .fillMaxHeight(),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        VoiceHintBanner(state = state)
-                        Spacer(modifier = Modifier.height(14.dp))
-                        NumberKeypadGrid(
-                            enabled = state.phase != QuestionPhase.FEEDBACK,
-                            buttonHeight = 76.dp,
-                            onNumberClick = onKeypadSubmit
-                        )
-                    }
+                    EyesFreeTipsFooter()
                 }
             }
         } else {
-            // 手机端：上（对称顶栏+进度） -> 中（固定答案框大算式） -> 下（4列严格对齐键盘）
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                PracticeTopHeader(
-                    state = state,
-                    onExit = onExit,
-                    onToggleInputMode = onToggleInputMode
-                )
+            // ⌨️ 按键模式（安静备用场景：平板左右分栏，手机上下流）
+            if (isPad) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 960.dp)
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        PracticeTopHeader(
+                            state = state,
+                            onExit = onExit,
+                            onToggleInputMode = onToggleInputMode
+                        )
 
-                QuestionBlackboardCard(
-                    state = state,
-                    question = question,
-                    isPad = false
-                )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(24.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 左栏：大算式卡片
+                            Box(
+                                modifier = Modifier
+                                    .weight(0.52f)
+                                    .fillMaxHeight(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                QuestionBlackboardCard(
+                                    state = state,
+                                    question = question,
+                                    isPad = true
+                                )
+                            }
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    VoiceHintBanner(state = state)
-                    NumberKeypadGrid(
-                        enabled = state.phase != QuestionPhase.FEEDBACK,
-                        buttonHeight = 62.dp,
-                        onNumberClick = onKeypadSubmit
+                            // 右栏：按键提示 + 4 列严格对齐大数字键盘
+                            Column(
+                                modifier = Modifier
+                                    .weight(0.48f)
+                                    .fillMaxHeight(),
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                VoiceHintBanner(state = state)
+                                Spacer(modifier = Modifier.height(14.dp))
+                                NumberKeypadGrid(
+                                    enabled = state.phase != QuestionPhase.FEEDBACK,
+                                    buttonHeight = 76.dp,
+                                    onNumberClick = onKeypadSubmit
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 手机端按键流
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    PracticeTopHeader(
+                        state = state,
+                        onExit = onExit,
+                        onToggleInputMode = onToggleInputMode
                     )
+
+                    QuestionBlackboardCard(
+                        state = state,
+                        question = question,
+                        isPad = false
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        VoiceHintBanner(state = state)
+                        NumberKeypadGrid(
+                            enabled = state.phase != QuestionPhase.FEEDBACK,
+                            buttonHeight = 62.dp,
+                            onNumberClick = onKeypadSubmit
+                        )
+                    }
                 }
             }
         }
@@ -734,5 +785,154 @@ private fun SummaryMetric(
             style = MaterialTheme.typography.labelMedium,
             maxLines = 1
         )
+    }
+}
+
+/**
+ * 🎙 专为“听音回答·保护视力”打造的远距离护眼算式黑板
+ */
+@Composable
+private fun VoiceEyesFreeBlackboardCard(
+    state: PracticeUiState,
+    question: Question,
+    isPad: Boolean
+) {
+    val lastAttempt = state.lastAttempt
+    val isFeedback = state.phase == QuestionPhase.FEEDBACK && lastAttempt != null
+
+    val cardColor = if (isFeedback && lastAttempt != null) {
+        when (lastAttempt.outcome) {
+            AnswerOutcome.CORRECT -> Color(0xFFE8F5E9)
+            AnswerOutcome.WRONG -> Color(0xFFFFEBEE)
+            AnswerOutcome.TIMEOUT -> Color(0xFFFFF8E1)
+        }
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+
+    val answerBoxBorderColor = if (isFeedback && lastAttempt != null) {
+        when (lastAttempt.outcome) {
+            AnswerOutcome.CORRECT -> Color(0xFF2E7D32)
+            AnswerOutcome.WRONG -> Color(0xFFC62828)
+            AnswerOutcome.TIMEOUT -> Color(0xFFEF6C00)
+        }
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
+    // 远距离护眼超大字体：平板 84sp，手机 62sp
+    val fontSize = if (isPad) 84.sp else 62.sp
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = if (isPad) 48.dp else 32.dp, horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 算式展示行
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "${question.leftExpression} = ",
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Box(
+                    modifier = Modifier
+                        .widthIn(min = if (isPad) 130.dp else 96.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(3.dp, answerBoxBorderColor, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isFeedback) question.answer.toString() else "?",
+                        fontSize = fontSize,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = answerBoxBorderColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 灵动语音状态与声波提示胶囊
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = when {
+                    isFeedback && lastAttempt != null -> when (lastAttempt.outcome) {
+                        AnswerOutcome.CORRECT -> Color(0xFFDCFCE7)
+                        AnswerOutcome.WRONG -> Color(0xFFFEE2E2)
+                        AnswerOutcome.TIMEOUT -> Color(0xFFFEF3C7)
+                    }
+                    state.phase == QuestionPhase.SPEECH_DETECTED -> Color(0xFFDBEAFE)
+                    state.phase == QuestionPhase.SPEAKING -> Color(0xFFF1F5F9)
+                    else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)
+                }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    val (icon, text, textColor) = when {
+                        isFeedback && lastAttempt != null -> when (lastAttempt.outcome) {
+                            AnswerOutcome.CORRECT -> Triple("✓", "回答正确！用时 ${lastAttempt.elapsedMs}ms", Color(0xFF166534))
+                            AnswerOutcome.WRONG -> Triple("✗", "回答了 ${lastAttempt.userAnswer}，正确是 ${question.answer}", Color(0xFF991B1B))
+                            AnswerOutcome.TIMEOUT -> Triple("⏰", "超时未答，正确答案是 ${question.answer}", Color(0xFF92400E))
+                        }
+                        state.phase == QuestionPhase.SPEAKING -> Triple("🔊", "正在语音播报题目...", Color(0xFF475569))
+                        state.phase == QuestionPhase.SPEECH_DETECTED -> Triple("⚡", "已听到开口！正在识别答案...", Color(0xFF1E40AF))
+                        else -> Triple("🎙", "请直接大声说出答案！", MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+
+                    Text(text = icon, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = text,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 护眼远距作答建议条
+ */
+@Composable
+private fun EyesFreeTipsFooter() {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFFF0FDF4),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDCFCE7))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "🌱", fontSize = 13.sp)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "护眼建议：可将设备立于 1 米外观看，听题即答，无需靠近和触碰屏幕",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF166534)
+            )
+        }
     }
 }

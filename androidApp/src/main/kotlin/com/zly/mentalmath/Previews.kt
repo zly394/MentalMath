@@ -37,10 +37,42 @@ fun HomeScreenPreview() {
     }
 }
 
-@Preview(name = "PracticeScreen - Phone", showBackground = true, widthDp = 390, heightDp = 844)
-@Preview(name = "PracticeScreen - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
+@Preview(name = "PracticeScreen (Voice) - Phone", showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(name = "PracticeScreen (Voice) - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
 @Composable
-fun PracticeScreenPreview() {
+fun PracticeScreenVoicePreview() {
+    MaterialTheme {
+        PracticeScreen(
+            state = PracticeUiState(
+                config = PracticeConfig(
+                    questionMode = QuestionMode.MIXED,
+                    timeLimit = TimeLimitOption.NORMAL_2S,
+                    inputMode = InputMode.VOICE
+                ),
+                isPracticing = true,
+                isPaused = false,
+                currentIndex = 6,
+                currentQuestion = Question(a = 3, op = Operator.ADD, b = 5),
+                phase = QuestionPhase.COUNTDOWN,
+                remainingMs = 1400L,
+                comboCount = 5,
+                maxCombo = 5,
+                voiceHint = ""
+            ),
+            isStarting = false,
+            onToggleInputMode = {},
+            onKeypadSubmit = {},
+            onRestartSession = {},
+            onResumeSession = {},
+            onOpenAnalysis = {},
+            onExit = {}
+        )
+    }
+}
+
+@Preview(name = "PracticeScreen (Keypad) - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
+@Composable
+fun PracticeScreenKeypadPreview() {
     MaterialTheme {
         PracticeScreen(
             state = PracticeUiState(
