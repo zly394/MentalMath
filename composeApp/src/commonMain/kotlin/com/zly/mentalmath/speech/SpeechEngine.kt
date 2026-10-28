@@ -56,6 +56,11 @@ expect class SpeechEngine() {
     fun playFeedbackSound(isCombo: Boolean)
 
     /**
+     * 播放答错或超时温和木质微音（~80ms，低音量），提供盲听确认，无压迫感
+     */
+    fun playWrongSound()
+
+    /**
      * 释放底层资源
      */
     fun release()

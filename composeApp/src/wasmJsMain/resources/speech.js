@@ -423,6 +423,28 @@ class MentalMathBrowserSpeech {
     }
   }
 
+  playWrongSound() {
+    try {
+      const context = this.audioContext();
+      if (!context || context.state !== 'running' || !context.createOscillator) return;
+      const now = context.currentTime;
+      // 温和木质轻微碰音（~80ms）：340Hz -> 180Hz 快速衰减，低音量
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(340, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.08);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(context.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } catch (e) {
+      console.warn('Wrong sound playback failed:', e);
+    }
+  }
+
   async startListening(onListeningReady, onSpeechDetected, onCandidates, onError) {
     const prepared = this.preparedRecognition;
     this.preparedRecognition = null;

@@ -180,6 +180,10 @@ actual class SpeechEngine actual constructor() {
         AudioServicesPlaySystemSound(soundId)
     }
 
+    actual fun playWrongSound() {
+        AudioServicesPlaySystemSound(1053u)
+    }
+
     actual fun setVoiceMode(enabled: Boolean) = Unit
 
     actual fun speak(text: String, onError: (String) -> Unit, onDone: () -> Unit) {

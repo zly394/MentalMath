@@ -904,3 +904,11 @@ test('playFeedbackSound synthesizes gentle micro chime for correct answer and co
   env.engine.playFeedbackSound(true);
   assert.equal(env.operations.filter(op => op === 'oscillator-start').length, 3);
 });
+
+test('playWrongSound synthesizes gentle low wood tap for wrong or timeout', async () => {
+  const env = environment();
+  await env.ready;
+  env.engine.audioContext();
+  env.engine.playWrongSound();
+  assert.ok(env.operations.includes('oscillator-start'));
+});

@@ -67,6 +67,9 @@ actual class SpeechEngine actual constructor() {
         private val comboFeedbackPcm: ByteArray by lazy {
             generateComboTonePcm()
         }
+        private val wrongFeedbackPcm: ByteArray by lazy {
+            generateTonePcm(durationMs = 80, startFreq = 340f, endFreq = 180f)
+        }
 
         private fun generateTonePcm(durationMs: Int, startFreq: Float, endFreq: Float): ByteArray {
             val totalSamples = (SAMPLE_RATE * durationMs) / 1000
@@ -286,6 +289,41 @@ actual class SpeechEngine actual constructor() {
             SAMPLE_RATE.toFloat(),
             NUMBER_GRAMMAR_JSON
         )
+    }
+
+    actual fun playWrongSound() {
+        audioExecutor.execute {
+            try {
+                val data = wrongFeedbackPcm
+                val track = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(SAMPLE_RATE)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(data.size.coerceAtLeast(4096))
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build()
+                track.write(data, 0, data.size)
+                track.play()
+                val sleepMs = (data.size / 32L) + 20L
+                Thread.sleep(sleepMs)
+                try {
+                    track.stop()
+                    track.release()
+                } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w(TAG, "Wrong sound play error", e)
+            }
+        }
     }
 
     actual fun playFeedbackSound(isCombo: Boolean) {
