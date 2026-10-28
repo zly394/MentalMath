@@ -148,71 +148,21 @@ fun PracticeScreen(
                 }
             }
         } else {
-            // ⌨️ 按键模式（安静备用场景：平板左右分栏，手机上下流）
-            if (isPad) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .widthIn(max = 960.dp)
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        PracticeTopHeader(
-                            state = state,
-                            onExit = onExit,
-                            onToggleInputMode = onToggleInputMode
-                        )
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(24.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 左栏：大算式卡片
-                            Box(
-                                modifier = Modifier
-                                    .weight(0.52f)
-                                    .fillMaxHeight(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                QuestionBlackboardCard(
-                                    state = state,
-                                    question = question,
-                                    isPad = true
-                                )
-                            }
-
-                            // 右栏：按键提示 + 4 列严格对齐大数字键盘
-                            Column(
-                                modifier = Modifier
-                                    .weight(0.48f)
-                                    .fillMaxHeight(),
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                VoiceHintBanner(state = state)
-                                Spacer(modifier = Modifier.height(14.dp))
-                                NumberKeypadGrid(
-                                    enabled = state.phase != QuestionPhase.FEEDBACK,
-                                    buttonHeight = 76.dp,
-                                    onNumberClick = onKeypadSubmit
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
-                // 手机端按键流
+            // ⌨️ 按键模式（统一上下结构：手眼垂直对齐，集中式紧凑键盘，反应更快盲打更爽）
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .widthIn(max = 520.dp)
+                        .padding(
+                            horizontal = if (isPad) 24.dp else 16.dp,
+                            vertical = if (isPad) 16.dp else 10.dp
+                        ),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     PracticeTopHeader(
                         state = state,
@@ -220,17 +170,29 @@ fun PracticeScreen(
                         onToggleInputMode = onToggleInputMode
                     )
 
-                    QuestionBlackboardCard(
-                        state = state,
-                        question = question,
-                        isPad = false
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(vertical = if (isPad) 12.dp else 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        QuestionBlackboardCard(
+                            state = state,
+                            question = question,
+                            isPad = isPad
+                        )
+                    }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         VoiceHintBanner(state = state)
                         NumberKeypadGrid(
                             enabled = state.phase != QuestionPhase.FEEDBACK,
-                            buttonHeight = 62.dp,
+                            buttonHeight = if (isPad) 68.dp else 60.dp,
                             onNumberClick = onKeypadSubmit
                         )
                     }
@@ -421,11 +383,11 @@ private fun QuestionBlackboardCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = if (isPad) 12.dp else 8.dp)
+                        .padding(bottom = if (isPad) 12.dp else 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     ComboStampBadge(
-                        comboCount = state.comboCount,
-                        modifier = Modifier.align(if (isPad) Alignment.TopEnd else Alignment.Center)
+                        comboCount = state.comboCount
                     )
                 }
             }
@@ -878,11 +840,11 @@ private fun VoiceEyesFreeBlackboardCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = if (isPad) 16.dp else 12.dp)
+                        .padding(bottom = if (isPad) 16.dp else 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     ComboStampBadge(
-                        comboCount = state.comboCount,
-                        modifier = Modifier.align(if (isPad) Alignment.TopEnd else Alignment.Center)
+                        comboCount = state.comboCount
                     )
                 }
             }
