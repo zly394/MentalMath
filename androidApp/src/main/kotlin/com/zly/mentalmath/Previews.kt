@@ -81,6 +81,44 @@ fun PracticeScreenVoicePreview() {
     }
 }
 
+@Preview(name = "PracticeScreen (Voice No Combo) - Phone", showBackground = true, widthDp = 375, heightDp = 812)
+@Composable
+fun PracticeScreenVoiceNoComboPreview() {
+    MaterialTheme {
+        PracticeScreen(
+            state = PracticeUiState(
+                config = PracticeConfig(
+                    questionMode = QuestionMode.MIXED,
+                    timeLimit = TimeLimitOption.NORMAL_2S,
+                    inputMode = InputMode.VOICE
+                ),
+                isPracticing = true,
+                isPaused = false,
+                currentIndex = 0,
+                currentQuestion = Question(a = 3, op = Operator.ADD, b = 7),
+                phase = QuestionPhase.FEEDBACK,
+                lastAttempt = AttemptRecord(
+                    question = Question(a = 3, op = Operator.ADD, b = 7),
+                    outcome = AnswerOutcome.CORRECT,
+                    userAnswer = 10,
+                    elapsedMs = 850L,
+                    timestampMs = 1710000000000L
+                ),
+                comboCount = 0,
+                maxCombo = 0,
+                voiceHint = ""
+            ),
+            isStarting = false,
+            onToggleInputMode = {},
+            onKeypadSubmit = {},
+            onRestartSession = {},
+            onResumeSession = {},
+            onOpenAnalysis = {},
+            onExit = {}
+        )
+    }
+}
+
 @Preview(name = "PracticeScreen (Keypad) - Phone", showBackground = true, widthDp = 412, heightDp = 892)
 @Preview(name = "PracticeScreen (Keypad) - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
 @Composable

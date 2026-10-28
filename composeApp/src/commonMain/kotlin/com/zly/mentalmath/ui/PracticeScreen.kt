@@ -405,18 +405,22 @@ private fun QuestionBlackboardCard(
                 ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (state.comboCount >= 2) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = if (isPad) 12.dp else 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+            // 连对荣誉固定高度槽位：预留恒定占位空间，无论是否连对，题目算式绝对零跳动
+            val comboSlotHeight = if (isPad) 38.dp else 30.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(comboSlotHeight),
+                contentAlignment = Alignment.Center
+            ) {
+                if (state.comboCount >= 2) {
                     ComboStampBadge(
                         comboCount = state.comboCount
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(if (isPad) 12.dp else 8.dp))
+
             // 算式行：左侧算式 + 等于号 + 固定宽度答案框，强制单行自适应绝不折行
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -896,18 +900,22 @@ private fun VoiceEyesFreeBlackboardCard(
                 ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (state.comboCount >= 2) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = if (isPad) 16.dp else 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+            // 连对荣誉固定高度槽位：预留恒定占位空间，无论是否连对，题目算式绝对零跳动
+            val comboSlotHeight = if (isPad) 40.dp else 32.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(comboSlotHeight),
+                contentAlignment = Alignment.Center
+            ) {
+                if (state.comboCount >= 2) {
                     ComboStampBadge(
                         comboCount = state.comboCount
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(if (isPad) 16.dp else 12.dp))
+
             // 算式展示行（强制单行防折行，完美收纳两位数答案如 10）
             Row(
                 verticalAlignment = Alignment.CenterVertically,
