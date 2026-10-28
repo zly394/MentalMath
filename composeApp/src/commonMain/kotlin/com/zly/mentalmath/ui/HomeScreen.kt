@@ -103,7 +103,6 @@ fun HomeScreen(
                             mistakes = statsMap.values.filter { it.isInMistakeBook },
                             onStartMistakeReview = onStartMistakeReview
                         )
-                        RecentSessionHistoryCard(sessions = sessions)
                     }
 
                     // 右栏：三大训练参数配置 + 开始挑战大按钮
@@ -153,9 +152,6 @@ fun HomeScreen(
                         onSelectTimeLimit = onSelectTimeLimit,
                         onSelectInputMode = onSelectInputMode
                     )
-                    if (sessions.isNotEmpty()) {
-                        LatestSessionBanner(sessions.first())
-                    }
                 }
 
                 // 底部固定主操作栏
@@ -275,107 +271,6 @@ private fun MistakeQuickCards(
                                     color = Color(0xFF9A3412).copy(alpha = 0.75f)
                                 )
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecentSessionHistoryCard(
-    sessions: List<SessionRecord>
-) {
-    if (sessions.isEmpty()) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFFF0FDF4)
-            ),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDCFCE7))
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "💡", fontSize = 15.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "一年级心算秘籍 · 凑十口诀",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF166534)
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "一九一九好朋友，二八二八手拉手。\n三七四六大团圆，五五凑成一双手。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF15803D),
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 22.sp
-                )
-            }
-        }
-    } else {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "📈", fontSize = 15.sp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "近期挑战战绩",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Text(
-                        text = "已完赛 ${sessions.size} 场",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                sessions.take(3).forEach { s ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 3.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${s.modeLabel} · ${s.timeLimitLabel}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "${s.correctCount}/${s.totalCount} 题",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${s.avgResponseMs}ms",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
                 }
@@ -738,17 +633,6 @@ private fun StartChallengeButton(
             fontWeight = FontWeight.ExtraBold
         )
     }
-}
-
-@Composable
-private fun LatestSessionBanner(latest: SessionRecord) {
-    Text(
-        text = "最近一轮：${latest.modeLabel}（${latest.timeLimitLabel}）· 正确 ${latest.correctCount}/${latest.totalCount} · 均速 ${latest.avgResponseMs}ms",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
-    )
 }
 
 @Composable
