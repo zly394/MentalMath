@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -68,53 +70,62 @@ fun HomeScreen(
         val isPad = maxWidth >= 600.dp
 
         if (isPad) {
-            // Pad / 平板横竖屏双栏自适应布局
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            // Pad / 平板横竖屏双栏自适应布局（居中定宽，高度均衡对称）
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
-                // 左栏：品牌标题 + 数据概览仪表盘 + 最近记录
-                Column(
+                Row(
                     modifier = Modifier
-                        .weight(0.44f)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .fillMaxSize()
+                        .widthIn(max = 1140.dp)
+                        .padding(horizontal = 28.dp, vertical = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    BrandHeader()
-                    OverviewDashboardCard(
-                        totalAnswered = totalAnswered,
-                        overallAccuracy = overallAccuracy,
-                        mistakeCount = mistakeCount,
-                        onOpenAnalysis = onOpenAnalysis,
-                        onStartMistakeReview = onStartMistakeReview
-                    )
-                    if (sessions.isNotEmpty()) {
-                        LatestSessionBanner(sessions.first())
+                    // 左栏：品牌中枢 + 仪表盘 + 重点错题快速通道 + 近期战绩/口诀秘籍
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        BrandHeader()
+                        OverviewDashboardCard(
+                            statsMap = statsMap,
+                            totalAnswered = totalAnswered,
+                            overallAccuracy = overallAccuracy,
+                            mistakeCount = mistakeCount,
+                            onOpenAnalysis = onOpenAnalysis,
+                            onStartMistakeReview = onStartMistakeReview
+                        )
+                        MistakeQuickCards(
+                            mistakes = statsMap.values.filter { it.isInMistakeBook },
+                            onStartMistakeReview = onStartMistakeReview
+                        )
+                        RecentSessionHistoryCard(sessions = sessions)
                     }
-                }
 
-                // 右栏：三大训练参数配置 + 开始挑战大按钮
-                Column(
-                    modifier = Modifier
-                        .weight(0.56f)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    ConfigCardsGroup(
-                        config = config,
-                        onSelectQuestionMode = onSelectQuestionMode,
-                        onSelectTimeLimit = onSelectTimeLimit,
-                        onSelectInputMode = onSelectInputMode
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    StartChallengeButton(
-                        config = config,
-                        onClick = onStartPractice
-                    )
+                    // 右栏：三大训练参数配置 + 开始挑战大按钮
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        ConfigCardsGroup(
+                            config = config,
+                            onSelectQuestionMode = onSelectQuestionMode,
+                            onSelectTimeLimit = onSelectTimeLimit,
+                            onSelectInputMode = onSelectInputMode
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        StartChallengeButton(
+                            config = config,
+                            onClick = onStartPractice
+                        )
+                    }
                 }
             }
         } else {
@@ -129,6 +140,7 @@ fun HomeScreen(
                 ) {
                     BrandHeader()
                     OverviewDashboardCard(
+                        statsMap = statsMap,
                         totalAnswered = totalAnswered,
                         overallAccuracy = overallAccuracy,
                         mistakeCount = mistakeCount,
@@ -187,13 +199,205 @@ private fun BrandHeader() {
 }
 
 @Composable
+private fun MistakeQuickCards(
+    mistakes: List<QuestionStat>,
+    onStartMistakeReview: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFFF7ED)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFEDD5))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "🎯", fontSize = 15.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "重点错题快速攻克",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF9A3412)
+                    )
+                }
+                if (mistakes.isNotEmpty()) {
+                    Text(
+                        text = "消灭全部 →",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFEA580C),
+                        modifier = Modifier.clickable { onStartMistakeReview() }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (mistakes.isEmpty()) {
+                Text(
+                    text = "太棒了！当前没有待消灭的错题，继续保持极速答题！",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF9A3412).copy(alpha = 0.8f)
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    mistakes.take(3).forEach { stat ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White)
+                                .border(1.dp, Color(0xFFFDBA74), RoundedCornerShape(10.dp))
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${stat.key} = ?",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFC2410C)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "需连对${stat.mistakeStreakToClear}次",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF9A3412).copy(alpha = 0.75f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSessionHistoryCard(
+    sessions: List<SessionRecord>
+) {
+    if (sessions.isEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFF0FDF4)
+            ),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDCFCE7))
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "💡", fontSize = 15.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "一年级心算秘籍 · 凑十口诀",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF166534)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "一九一九好朋友，二八二八手拉手。\n三七四六大团圆，五五凑成一双手。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF15803D),
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 22.sp
+                )
+            }
+        }
+    } else {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "📈", fontSize = 15.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "近期挑战战绩",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        text = "已完赛 ${sessions.size} 场",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                sessions.take(3).forEach { s ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${s.modeLabel} · ${s.timeLimitLabel}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${s.correctCount}/${s.totalCount} 题",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "${s.avgResponseMs}ms",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun OverviewDashboardCard(
+    statsMap: Map<String, QuestionStat>,
     totalAnswered: Int,
     overallAccuracy: Int,
     mistakeCount: Int,
     onOpenAnalysis: () -> Unit,
     onStartMistakeReview: () -> Unit
 ) {
+    val totalCount = 132
+    val masteredCount = statsMap.values.count { it.totalAttempts > 0 && !it.isInMistakeBook && it.correctCount > 0 }
+    val pendingCount = (totalCount - masteredCount - mistakeCount).coerceAtLeast(0)
+    val percent = ((masteredCount.toFloat() / totalCount) * 100).toInt()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -201,8 +405,107 @@ private fun OverviewDashboardCard(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
-        Column(modifier = Modifier.padding(vertical = 14.dp, horizontal = 14.dp)) {
-            // 严格三等分居中对齐
+        Column(modifier = Modifier.padding(14.dp)) {
+            // 上半部：132题全库掌握度微型进度区
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "📊", fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "132题全库掌握度",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Text(
+                    text = "已掌握 $masteredCount/132 题 ($percent%)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 三色掌握度分段进度条
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(7.dp)
+                    .clip(RoundedCornerShape(9999.dp))
+                    .background(Color(0xFFE2E8F0))
+            ) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    if (masteredCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .weight((masteredCount.toFloat() / totalCount).coerceAtLeast(0.01f))
+                                .fillMaxHeight()
+                                .background(Color(0xFF10B981))
+                        )
+                    }
+                    if (mistakeCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .weight((mistakeCount.toFloat() / totalCount).coerceAtLeast(0.01f))
+                                .fillMaxHeight()
+                                .background(Color(0xFFF97316))
+                        )
+                    }
+                    if (pendingCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .weight((pendingCount.toFloat() / totalCount).coerceAtLeast(0.01f))
+                                .fillMaxHeight()
+                                .background(Color(0xFFE2E8F0))
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 掌握度细分标签
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🟢 已掌握 $masteredCount",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF047857)
+                )
+                Text(
+                    text = "🟡 磨合中 $pendingCount",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = "🔴 待攻克 $mistakeCount",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (mistakeCount > 0) Color(0xFFB45309) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 下半部：三项作答战绩
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -224,7 +527,10 @@ private fun OverviewDashboardCard(
                     highlight = mistakeCount > 0
                 )
             }
+
             Spacer(modifier = Modifier.height(12.dp))
+
+            // 操作按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
