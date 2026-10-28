@@ -179,56 +179,26 @@
             color: #991B1B;
         }
 
-        /* 现代化品牌 Splash 启动屏（全端全视口绝对居中，杜绝任何老版本 WebView 或宽屏平板偏至右下角） */
+        /* 现代化品牌 Splash 启动屏 */
         #boot-status {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: 100%;
-            height: 100%;
-            width: 100vw;
-            height: 100vh;
-            margin: 0;
+            inset: 0;
+            display: grid;
+            place-content: center;
             padding: 24px;
-            box-sizing: border-box;
             z-index: 1000;
             background: #F8FAFC;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
             text-align: center;
             user-select: none;
             -webkit-user-select: none;
-            display: -webkit-box;
-            display: -webkit-flex;
-            display: flex;
-            -webkit-box-orient: vertical;
-            -webkit-box-direction: normal;
-            -webkit-flex-direction: column;
-            flex-direction: column;
-            -webkit-box-align: center;
-            -webkit-align-items: center;
-            align-items: center;
-            -webkit-box-pack: center;
-            -webkit-justify-content: center;
-            justify-content: center;
         }
         .boot-card {
-            display: -webkit-box;
-            display: -webkit-flex;
             display: flex;
-            -webkit-box-orient: vertical;
-            -webkit-box-direction: normal;
-            -webkit-flex-direction: column;
             flex-direction: column;
-            -webkit-box-align: center;
-            -webkit-align-items: center;
             align-items: center;
-            -webkit-box-pack: center;
-            -webkit-justify-content: center;
             justify-content: center;
-            width: 100%;
-            max-width: 360px;
+            max-width: 320px;
             margin: 0 auto;
         }
         .boot-logo {
@@ -304,16 +274,6 @@
     </style>
 </head>
 <body>
-    <div id="boot-status" role="status">
-        <div class="boot-card">
-            <img class="boot-logo" src="icon-192.png" alt="口算特训" width="64" height="64">
-            <div class="boot-app-name">口算特训</div>
-            <div class="boot-spinner" aria-hidden="true"></div>
-            <strong id="boot-title">正在获取启动程序……</strong>
-            <p id="boot-detail">正在准备应用资源。</p>
-            <button id="boot-retry" type="button" hidden>重新加载</button>
-        </div>
-    </div>
     <div id="app"></div>
     <aside id="offline-status" role="status" aria-live="polite" aria-atomic="true" hidden>
         <progress id="offline-status-progress" max="1" aria-label="离线语音模型加载进度"></progress>
@@ -340,6 +300,16 @@
             </button>
         </div>
     </aside>
+    <div id="boot-status" role="status">
+        <div class="boot-card">
+            <img class="boot-logo" src="icon-192.png" alt="口算特训" width="64" height="64">
+            <div class="boot-app-name">口算特训</div>
+            <div class="boot-spinner" aria-hidden="true"></div>
+            <strong id="boot-title">正在获取启动程序……</strong>
+            <p id="boot-detail">正在准备应用资源。</p>
+            <button id="boot-retry" type="button" hidden>重新加载</button>
+        </div>
+    </div>
     <script src="startup.js"></script>
     <script defer src="offline-speech.js"></script>
     <script defer src="speech.js"></script>
