@@ -34,11 +34,6 @@ fun main() {
     SpeechDiagnostics.listener = ::recordSpeechDiagnostic
     val app = document.getElementById("app") ?: error("Application container is unavailable")
     ComposeViewport(app) {
-        LaunchedEffect(Unit) {
-            withFrameNanos { }
-            withFrameNanos { }
-            startupReady()
-        }
         var cnFontFamily by remember { mutableStateOf<FontFamily?>(null) }
         val fontFamilyResolver = LocalFontFamilyResolver.current
 
@@ -62,6 +57,9 @@ fun main() {
             } catch (e: Exception) {
                 logFontError("Failed to load app_cn.ttf: ${e.message}")
             }
+            withFrameNanos { }
+            withFrameNanos { }
+            startupReady()
         }
 
         val family = cnFontFamily

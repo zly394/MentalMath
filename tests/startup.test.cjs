@@ -7,20 +7,21 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '..', 'composeApp', 'src',
   'wasmJsMain', 'resources', 'startup.js'), 'utf8');
 
-function environment() {
+function environment(windowOverrides = {}) {
   const handlers = {};
   const timers = [];
   let reloads = 0;
-  const elements = Object.fromEntries(['boot-status', 'boot-title', 'boot-detail', 'boot-retry']
+  const elements = Object.fromEntries(['app', 'boot-status', 'boot-title', 'boot-detail', 'boot-retry']
     .map(id => [id, {
-      hidden: true, textContent: '', attributes: {},
+      hidden: true, textContent: '', attributes: {}, style: {},
       setAttribute(name, value) { this.attributes[name] = value; },
       addEventListener(name, callback) { this[name] = callback; },
       remove() { this.removed = true; }
     }]));
   const window = {
     addEventListener: (name, callback) => { handlers[name] = callback; },
-    location: { reload() { reloads++; } }
+    location: { reload() { reloads++; } },
+    ...windowOverrides
   };
   const context = {
     window, document: { getElementById: id => elements[id] },
@@ -77,4 +78,28 @@ test('startup failures remain visible while late success can still remove the ov
   assert.equal(env.elements['boot-status'].removed, true);
   env.handlers.error({ message: 'unrelated error after startup' });
   assert.equal(env.elements['boot-status'].removed, true);
+});
+
+test('startup synchronizes boot overlay and app container to visualViewport dimensions', () => {
+  const vvHandlers = {};
+  const visualViewport = {
+    width: 1024,
+    height: 1366,
+    offsetLeft: 0,
+    offsetTop: 0,
+    addEventListener(name, cb) { vvHandlers[name] = cb; }
+  };
+  const env = environment({ visualViewport });
+  assert.equal(env.elements['boot-status'].style.width, '1024px');
+  assert.equal(env.elements['boot-status'].style.height, '1366px');
+  assert.equal(env.elements['app'].style.width, '1024px');
+  assert.equal(env.elements['app'].style.height, '1366px');
+
+  visualViewport.width = 1366;
+  visualViewport.height = 1024;
+  vvHandlers.resize();
+  assert.equal(env.elements['boot-status'].style.width, '1366px');
+  assert.equal(env.elements['boot-status'].style.height, '1024px');
+  assert.equal(env.elements['app'].style.width, '1366px');
+  assert.equal(env.elements['app'].style.height, '1024px');
 });
