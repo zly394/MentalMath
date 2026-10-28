@@ -3,6 +3,8 @@ package com.zly.mentalmath
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.zly.mentalmath.model.AttemptRecord
+import com.zly.mentalmath.model.AnswerOutcome
 import com.zly.mentalmath.model.InputMode
 import com.zly.mentalmath.model.Operator
 import com.zly.mentalmath.model.PracticeConfig
@@ -40,7 +42,7 @@ fun HomeScreenPreview() {
     }
 }
 
-@Preview(name = "PracticeScreen (Voice) - Phone", showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(name = "PracticeScreen (Voice) - Phone", showBackground = true, widthDp = 375, heightDp = 812)
 @Preview(name = "PracticeScreen (Voice) - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
 @Composable
 fun PracticeScreenVoicePreview() {
@@ -54,10 +56,16 @@ fun PracticeScreenVoicePreview() {
                 ),
                 isPracticing = true,
                 isPaused = false,
-                currentIndex = 6,
-                currentQuestion = Question(a = 3, op = Operator.ADD, b = 5),
-                phase = QuestionPhase.COUNTDOWN,
-                remainingMs = 1400L,
+                currentIndex = 0,
+                currentQuestion = Question(a = 3, op = Operator.ADD, b = 7),
+                phase = QuestionPhase.FEEDBACK,
+                lastAttempt = AttemptRecord(
+                    question = Question(a = 3, op = Operator.ADD, b = 7),
+                    outcome = AnswerOutcome.CORRECT,
+                    userAnswer = 10,
+                    elapsedMs = 850L,
+                    timestampMs = 1710000000000L
+                ),
                 comboCount = 5,
                 maxCombo = 5,
                 voiceHint = ""

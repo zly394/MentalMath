@@ -340,7 +340,7 @@ private fun QuestionBlackboardCard(
             AnswerOutcome.TIMEOUT -> Color(0xFFFFF8E1)
         }
     } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        MaterialTheme.colorScheme.surface
     }
 
     val answerBoxBorderColor = if (isFeedback) {
@@ -361,12 +361,16 @@ private fun QuestionBlackboardCard(
         }
     }
 
-    val fontSize = if (isPad) 64.sp else 50.sp
+    val fontSize = if (isPad) 64.sp else 44.sp
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(26.dp)),
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor)
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        border = if (!isFeedback) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -391,7 +395,7 @@ private fun QuestionBlackboardCard(
                     )
                 }
             }
-            // 算式行：左侧算式 + 等于号 + 固定宽度答案框，切换状态绝不抖动
+            // 算式行：左侧算式 + 等于号 + 固定宽度答案框，强制单行自适应绝不折行
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
@@ -400,23 +404,28 @@ private fun QuestionBlackboardCard(
                     text = "${question.leftExpression} = ",
                     fontSize = fontSize,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    softWrap = false,
+                    maxLines = 1
                 )
 
                 Box(
                     modifier = Modifier
-                        .widthIn(min = if (isPad) 104.dp else 82.dp)
+                        .widthIn(min = if (isPad) 100.dp else 68.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface).background(answerBoxBorderColor.copy(alpha = 0.06f))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .background(answerBoxBorderColor.copy(alpha = 0.06f))
                         .border(2.5.dp, answerBoxBorderColor, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                        .padding(horizontal = if (isPad) 14.dp else 8.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = if (isFeedback) question.answer.toString() else "?",
                         fontSize = fontSize,
                         fontWeight = FontWeight.ExtraBold,
-                        color = answerBoxBorderColor
+                        color = answerBoxBorderColor,
+                        softWrap = false,
+                        maxLines = 1
                     )
                 }
             }
@@ -795,7 +804,7 @@ private fun VoiceEyesFreeBlackboardCard(
             AnswerOutcome.TIMEOUT -> Color(0xFFFFF8E1)
         }
     } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        MaterialTheme.colorScheme.surface
     }
 
     val answerBoxBorderColor = if (isFeedback) {
@@ -816,14 +825,17 @@ private fun VoiceEyesFreeBlackboardCard(
         }
     }
 
-    // 远距离护眼超大字体：平板 84sp，手机 62sp
-    val fontSize = if (isPad) 84.sp else 62.sp
+    // 远距离护眼超大字体：平板 76sp，手机 46sp（清晰醒目且安全收纳 10，绝不折行）
+    val fontSize = if (isPad) 76.sp else 46.sp
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(32.dp)),
         shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = if (!isFeedback) androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -848,7 +860,7 @@ private fun VoiceEyesFreeBlackboardCard(
                     )
                 }
             }
-            // 算式展示行
+            // 算式展示行（强制单行防折行，完美收纳两位数答案如 10）
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
@@ -857,23 +869,28 @@ private fun VoiceEyesFreeBlackboardCard(
                     text = "${question.leftExpression} = ",
                     fontSize = fontSize,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    softWrap = false,
+                    maxLines = 1
                 )
 
                 Box(
                     modifier = Modifier
-                        .widthIn(min = if (isPad) 130.dp else 96.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surface).background(answerBoxBorderColor.copy(alpha = 0.06f))
-                        .border(3.dp, answerBoxBorderColor, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .widthIn(min = if (isPad) 104.dp else 72.dp)
+                        .clip(RoundedCornerShape(if (isPad) 20.dp else 16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .background(answerBoxBorderColor.copy(alpha = 0.06f))
+                        .border(if (isPad) 3.dp else 2.5.dp, answerBoxBorderColor, RoundedCornerShape(if (isPad) 20.dp else 16.dp))
+                        .padding(horizontal = if (isPad) 14.dp else 8.dp, vertical = if (isPad) 6.dp else 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = if (isFeedback) question.answer.toString() else "?",
                         fontSize = fontSize,
                         fontWeight = FontWeight.ExtraBold,
-                        color = answerBoxBorderColor
+                        color = answerBoxBorderColor,
+                        softWrap = false,
+                        maxLines = 1
                     )
                 }
             }
