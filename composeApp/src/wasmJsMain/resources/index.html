@@ -182,15 +182,9 @@
         /* 现代化品牌 Splash 启动屏 */
         #boot-status {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            inset: 0;
+            display: grid;
+            place-content: center;
             padding: 24px;
             z-index: 1000;
             background: #F8FAFC;
@@ -205,6 +199,7 @@
             align-items: center;
             justify-content: center;
             max-width: 320px;
+            margin: 0 auto;
         }
         .boot-logo {
             width: 64px;
