@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import com.zly.mentalmath.model.AnswerOutcome
 import com.zly.mentalmath.model.InputMode
 import com.zly.mentalmath.model.Question
+import com.zly.mentalmath.ui.components.AppIcons
 
 @Composable
 fun PracticeScreen(
@@ -256,14 +258,24 @@ private fun PracticeTopHeader(
                         onToggleInputMode(next)
                     }
             ) {
-                Text(
-                    text = if (isVoice) "🎤 语音·切按键" else "⌨️ 按键·切语音",
+                Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (isVoice) {
+                        AppIcons.Mic(modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    } else {
+                        AppIcons.Keyboard(modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                    Text(
+                        text = if (isVoice) "语音·切按键" else "按键·切语音",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
             }
         }
     }
@@ -279,29 +291,33 @@ private fun ComboStampBadge(
 ) {
     if (comboCount < 2) return
 
-    val label: String
+    val text: String
     val bgColor: Color
     val textColor: Color
     val borderColor: Color
+    val icon: @Composable () -> Unit
 
     when {
         comboCount >= 10 -> {
-            label = "👑 $comboCount 连对 · 超神"
+            text = "$comboCount 连对 · 超神"
             bgColor = Color(0xFFF3E5F5)
             textColor = Color(0xFF7B1FA2)
             borderColor = Color(0xFFCE93D8)
+            icon = { AppIcons.Crown(modifier = Modifier.size(14.dp), tint = textColor) }
         }
         comboCount >= 5 -> {
-            label = "⚡ $comboCount 连对 · 火热"
+            text = "$comboCount 连对 · 火热"
             bgColor = Color(0xFFFFEBEE)
             textColor = Color(0xFFC62828)
             borderColor = Color(0xFFEF9A9A)
+            icon = { AppIcons.Bolt(modifier = Modifier.size(13.dp), tint = textColor) }
         }
         else -> {
-            label = "🔥 $comboCount 连对"
+            text = "$comboCount 连对"
             bgColor = Color(0xFFFFF3E0)
             textColor = Color(0xFFE65100)
             borderColor = Color(0xFFFFCC80)
+            icon = { AppIcons.Fire(modifier = Modifier.size(13.dp), tint = textColor) }
         }
     }
 
@@ -311,13 +327,19 @@ private fun ComboStampBadge(
         color = bgColor,
         border = BorderStroke(1.dp, borderColor)
     ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = textColor
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            icon()
+            Text(
+                text = text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = textColor
+            )
+        }
     }
 }
 
@@ -483,22 +505,33 @@ private fun VoiceHintBanner(state: PracticeUiState) {
             .padding(vertical = 8.dp, horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = if (isVoice) {
-                "🎙 语音抢答中：直接喊出 0~10，也可直接点下方数字键"
+        val contentColor = if (isVoice) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (isVoice) {
+                AppIcons.Mic(modifier = Modifier.size(14.dp), tint = contentColor)
             } else {
-                "⌨️ 听音按键中：听完题目后快速点击下方 0~10 数字键"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = if (isVoice) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+                AppIcons.Keyboard(modifier = Modifier.size(14.dp), tint = contentColor)
             }
-        )
+            Text(
+                text = if (isVoice) {
+                    "语音抢答中：直接喊出 0~10，也可直接点下方数字键"
+                } else {
+                    "听音按键中：听完题目后快速点击下方 0~10 数字键"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = contentColor
+            )
+        }
     }
 }
 
@@ -916,15 +949,25 @@ private fun VoiceEyesFreeBlackboardCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    val (icon, text, textColor) = when {
+                    val textColor = when {
                         isFeedback -> when (lastAttempt.outcome) {
-                            AnswerOutcome.CORRECT -> Triple("✓", "回答正确！用时 ${lastAttempt.elapsedMs}ms", Color(0xFF166534))
-                            AnswerOutcome.WRONG -> Triple("✗", "回答了 ${lastAttempt.userAnswer}，正确是 ${question.answer}", Color(0xFF991B1B))
-                            AnswerOutcome.TIMEOUT -> Triple("⏰", "超时未答，正确答案是 ${question.answer}", Color(0xFF92400E))
+                            AnswerOutcome.CORRECT -> Color(0xFF166534)
+                            AnswerOutcome.WRONG -> Color(0xFF991B1B)
+                            AnswerOutcome.TIMEOUT -> Color(0xFF92400E)
                         }
-                        state.phase == QuestionPhase.SPEAKING -> Triple("🔊", "正在语音播报题目...", Color(0xFF475569))
-                        state.phase == QuestionPhase.SPEECH_DETECTED -> Triple("⚡", "已听到开口！正在识别答案...", Color(0xFF1E40AF))
-                        else -> Triple("🎙", "请直接大声说出答案！", MaterialTheme.colorScheme.onSecondaryContainer)
+                        state.phase == QuestionPhase.SPEAKING -> Color(0xFF475569)
+                        state.phase == QuestionPhase.SPEECH_DETECTED -> Color(0xFF1E40AF)
+                        else -> MaterialTheme.colorScheme.onSecondaryContainer
+                    }
+                    val feedbackText = when {
+                        isFeedback -> when (lastAttempt.outcome) {
+                            AnswerOutcome.CORRECT -> "回答正确！用时 ${lastAttempt.elapsedMs}ms"
+                            AnswerOutcome.WRONG -> "回答了 ${lastAttempt.userAnswer}，正确是 ${question.answer}"
+                            AnswerOutcome.TIMEOUT -> "超时未答，正确答案是 ${question.answer}"
+                        }
+                        state.phase == QuestionPhase.SPEAKING -> "正在语音播报题目..."
+                        state.phase == QuestionPhase.SPEECH_DETECTED -> "已听到开口！正在识别答案..."
+                        else -> "请直接大声说出答案！"
                     }
 
                     VoiceWaveformBars(
@@ -932,16 +975,23 @@ private fun VoiceEyesFreeBlackboardCard(
                         isDetected = state.phase == QuestionPhase.SPEECH_DETECTED,
                         color = textColor
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(text = icon, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    when {
+                        isFeedback && lastAttempt.outcome == AnswerOutcome.CORRECT -> Text("✓", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
+                        isFeedback && lastAttempt.outcome == AnswerOutcome.WRONG -> Text("✗", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
+                        isFeedback && lastAttempt.outcome == AnswerOutcome.TIMEOUT -> AppIcons.Bolt(modifier = Modifier.size(15.dp), tint = textColor)
+                        state.phase == QuestionPhase.SPEAKING -> AppIcons.Speaker(modifier = Modifier.size(15.dp), tint = textColor)
+                        state.phase == QuestionPhase.SPEECH_DETECTED -> AppIcons.Bolt(modifier = Modifier.size(15.dp), tint = textColor)
+                        else -> AppIcons.Mic(modifier = Modifier.size(15.dp), tint = textColor)
+                    }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = text,
+                        text = feedbackText,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = textColor
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     VoiceWaveformBars(
                         isListening = state.phase == QuestionPhase.COUNTDOWN,
                         isDetected = state.phase == QuestionPhase.SPEECH_DETECTED,
@@ -967,8 +1017,11 @@ private fun EyesFreeTipsFooter() {
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "🌱", fontSize = 13.sp)
-            Spacer(modifier = Modifier.width(6.dp))
+            AppIcons.Sprout(
+                modifier = Modifier.size(15.dp),
+                color = Color(0xFF16A34A)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "护眼建议：可将设备立于 1 米外观看，听题即答，无需靠近和触碰屏幕",
                 fontSize = 12.sp,
@@ -978,6 +1031,8 @@ private fun EyesFreeTipsFooter() {
         }
     }
 }
+
+
 
 /**
  * 🌊 灵动声波呼吸律动条：无屏护眼交互的核心“生命体征”指示器

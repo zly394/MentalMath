@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -47,6 +48,7 @@ import com.zly.mentalmath.model.QuestionMode
 import com.zly.mentalmath.model.QuestionStat
 import com.zly.mentalmath.model.SessionRecord
 import com.zly.mentalmath.model.TimeLimitOption
+import com.zly.mentalmath.ui.components.AppIcons
 
 @Composable
 fun HomeScreen(
@@ -216,9 +218,11 @@ private fun MistakeQuickCards(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "🎯", fontSize = 15.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcons.Target(modifier = Modifier.size(15.dp), tint = Color(0xFFEA580C))
                     Text(
                         text = "重点错题快速攻克",
                         style = MaterialTheme.typography.titleSmall,
@@ -315,9 +319,11 @@ private fun OverviewDashboardCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "📊", fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcons.Chart(modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                     Text(
                         text = "132题全库掌握度",
                         style = MaterialTheme.typography.titleSmall,
@@ -379,24 +385,42 @@ private fun OverviewDashboardCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "🟢 已掌握 $masteredCount",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF047857)
-                )
-                Text(
-                    text = "🟡 磨合中 $pendingCount",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = "🔴 待攻克 $mistakeCount",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (mistakeCount > 0) Color(0xFFB45309) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    AppIcons.StatusDot(color = Color(0xFF10B981), size = 7.dp)
+                    Text(
+                        text = "已掌握 $masteredCount",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF047857)
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    AppIcons.StatusDot(color = Color(0xFFF59E0B), size = 7.dp)
+                    Text(
+                        text = "磨合中 $pendingCount",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    AppIcons.StatusDot(color = Color(0xFFEF4444), size = 7.dp)
+                    Text(
+                        text = "待攻克 $mistakeCount",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (mistakeCount > 0) Color(0xFFB45309) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))

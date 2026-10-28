@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,14 +47,15 @@ import com.zly.mentalmath.model.MasteryLevel
 import com.zly.mentalmath.model.Operator
 import com.zly.mentalmath.model.QuestionStat
 import com.zly.mentalmath.model.SessionRecord
+import com.zly.mentalmath.ui.components.AppIcons
 
 /**
  * 精炼三主项：薄弱诊断、错题专练、全库热力
  */
 private enum class AnalysisTab(val title: String) {
-    WEAKNESS("🩺 薄弱诊断"),
-    MISTAKE_BOOK("📕 错题专练"),
-    HEATMAP("📊 全库热力")
+    WEAKNESS("薄弱诊断"),
+    MISTAKE_BOOK("错题专练"),
+    HEATMAP("全库热力")
 }
 
 @Composable
@@ -273,7 +275,7 @@ private fun AnalysisSummaryBanner(statsMap: Map<String, QuestionStat>) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             SummaryPillItem(
-                icon = "📕",
+                icon = { AppIcons.MistakeBook(modifier = Modifier.size(13.dp), tint = Color(0xFFDC2626)) },
                 label = "待消灭错题",
                 value = "${mistakesCount}题",
                 valueColor = if (mistakesCount > 0) Color(0xFFD32F2F) else Color(0xFF2E7D32)
@@ -285,7 +287,7 @@ private fun AnalysisSummaryBanner(statsMap: Map<String, QuestionStat>) {
                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             )
             SummaryPillItem(
-                icon = "⚡",
+                icon = { AppIcons.Bolt(modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary) },
                 label = "均速评级",
                 value = if (avgSpeedMs == 0L) "--" else "${avgSpeedMs}ms ($speedRating)",
                 valueColor = MaterialTheme.colorScheme.primary
@@ -297,7 +299,7 @@ private fun AnalysisSummaryBanner(statsMap: Map<String, QuestionStat>) {
                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             )
             SummaryPillItem(
-                icon = "🏆",
+                icon = { AppIcons.Trophy(modifier = Modifier.size(13.dp), tint = Color(0xFFD97706)) },
                 label = "全库掌握率",
                 value = "$masteryPercent%",
                 valueColor = Color(0xFF2E7D32)
@@ -308,15 +310,17 @@ private fun AnalysisSummaryBanner(statsMap: Map<String, QuestionStat>) {
 
 @Composable
 private fun SummaryPillItem(
-    icon: String,
+    icon: @Composable () -> Unit,
     label: String,
     value: String,
     valueColor: Color
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(icon, fontSize = 12.sp)
-            Spacer(Modifier.width(4.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            icon()
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
@@ -366,13 +370,23 @@ private fun SegmentedTabRow(
                     .clickable { onSelectTab(tab) },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = tab.title,
-                    fontSize = 13.5.sp,
-                    maxLines = 1,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = textColor
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    when (tab) {
+                        AnalysisTab.WEAKNESS -> AppIcons.Diagnosis(modifier = Modifier.size(14.dp), tint = textColor)
+                        AnalysisTab.MISTAKE_BOOK -> AppIcons.MistakeBook(modifier = Modifier.size(14.dp), tint = textColor)
+                        AnalysisTab.HEATMAP -> AppIcons.Chart(modifier = Modifier.size(14.dp), tint = textColor)
+                    }
+                    Text(
+                        text = tab.title,
+                        fontSize = 13.5.sp,
+                        maxLines = 1,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = textColor
+                    )
+                }
             }
         }
     }
@@ -717,13 +731,20 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
             }
         }
     } else {
-        Text(
-            text = "💡 点击下方任意色块，可查看单道算式的精确战绩与反应用时",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppIcons.Lightbulb(modifier = Modifier.size(13.dp), tint = Color(0xFFD97706))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "点击下方任意色块，可查看单道算式的精确战绩与反应用时",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 
     val selectedA = currentQuestion?.a
@@ -741,12 +762,27 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.primary
         )
-        Text(
-            text = "🟢 秒杀  🟡 熟练  🔴 薄弱  ⚪ 未练",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                AppIcons.StatusDot(color = Color(0xFF10B981), size = 6.dp)
+                Text(text = "秒杀", style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                AppIcons.StatusDot(color = Color(0xFFF59E0B), size = 6.dp)
+                Text(text = "熟练", style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                AppIcons.StatusDot(color = Color(0xFFEF4444), size = 6.dp)
+                Text(text = "薄弱", style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                AppIcons.StatusDot(color = Color(0xFFCBD5E1), size = 6.dp)
+                Text(text = "未练", style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 
     // 晶莹色块矩阵（含轻量坐标轴与十字精准定位）
