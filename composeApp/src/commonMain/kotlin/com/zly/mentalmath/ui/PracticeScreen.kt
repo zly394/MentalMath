@@ -28,6 +28,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -897,12 +904,24 @@ private fun VoiceEyesFreeBlackboardCard(
                         else -> Triple("🎙", "请直接大声说出答案！", MaterialTheme.colorScheme.onSecondaryContainer)
                     }
 
+                    VoiceWaveformBars(
+                        isListening = state.phase == QuestionPhase.COUNTDOWN,
+                        isDetected = state.phase == QuestionPhase.SPEECH_DETECTED,
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(text = icon, fontSize = 16.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = text,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    VoiceWaveformBars(
+                        isListening = state.phase == QuestionPhase.COUNTDOWN,
+                        isDetected = state.phase == QuestionPhase.SPEECH_DETECTED,
                         color = textColor
                     )
                 }
@@ -933,6 +952,84 @@ private fun EyesFreeTipsFooter() {
                 fontWeight = FontWeight.Medium,
                 color = Color(0xFF166534)
             )
+        }
+    }
+}
+
+/**
+ * 🌊 灵动声波呼吸律动条：无屏护眼交互的核心“生命体征”指示器
+ */
+@Composable
+private fun VoiceWaveformBars(
+    isListening: Boolean,
+    isDetected: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    if (isDetected) {
+        // 开口瞬间捕获：高挺定格
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val heights = listOf(10.dp, 16.dp, 22.dp, 16.dp, 10.dp)
+            heights.forEach { h ->
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(h)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(color)
+                )
+            }
+        }
+    } else if (isListening) {
+        // 聆听阶段：5 根声波自然起伏呼吸
+        val transition = rememberInfiniteTransition()
+        val h1 by transition.animateFloat(
+            initialValue = 6f,
+            targetValue = 18f,
+            animationSpec = infiniteRepeatable(tween(420, easing = LinearEasing), RepeatMode.Reverse)
+        )
+        val h2 by transition.animateFloat(
+            initialValue = 16f,
+            targetValue = 7f,
+            animationSpec = infiniteRepeatable(tween(520, easing = LinearEasing), RepeatMode.Reverse)
+        )
+        val h3 by transition.animateFloat(
+            initialValue = 8f,
+            targetValue = 22f,
+            animationSpec = infiniteRepeatable(tween(380, easing = LinearEasing), RepeatMode.Reverse)
+        )
+
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.width(3.dp).height(h1.dp).clip(RoundedCornerShape(2.dp)).background(color))
+            Box(Modifier.width(3.dp).height(h2.dp).clip(RoundedCornerShape(2.dp)).background(color))
+            Box(Modifier.width(3.dp).height(h3.dp).clip(RoundedCornerShape(2.dp)).background(color))
+            Box(Modifier.width(3.dp).height(h2.dp).clip(RoundedCornerShape(2.dp)).background(color))
+            Box(Modifier.width(3.dp).height(h1.dp).clip(RoundedCornerShape(2.dp)).background(color))
+        }
+    } else {
+        // 静止微条（播题或反馈结算）
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(5) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(color.copy(alpha = 0.45f))
+                )
+            }
         }
     }
 }
