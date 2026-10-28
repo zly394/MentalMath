@@ -394,7 +394,15 @@ private fun QuestionBlackboardCard(
             AnswerOutcome.TIMEOUT -> Color(0xFFEF6C00)
         }
     } else {
-        MaterialTheme.colorScheme.primary
+        when {
+            state.phase == QuestionPhase.SPEECH_DETECTED -> Color(0xFF1E88E5)
+            state.phase == QuestionPhase.COUNTDOWN -> when {
+                state.timeProgress > 0.5f -> Color(0xFF10B981) // 充裕：生机绿
+                state.timeProgress > 0.25f -> Color(0xFFF97316) // 警示：暖阳橙
+                else -> Color(0xFFEF4444) // 临界冲刺：醒目红
+            }
+            else -> MaterialTheme.colorScheme.primary
+        }
     }
 
     val fontSize = if (isPad) 64.sp else 50.sp
@@ -426,7 +434,7 @@ private fun QuestionBlackboardCard(
                     modifier = Modifier
                         .widthIn(min = if (isPad) 104.dp else 82.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface)
+                        .background(MaterialTheme.colorScheme.surface).background(answerBoxBorderColor.copy(alpha = 0.06f))
                         .border(2.5.dp, answerBoxBorderColor, RoundedCornerShape(16.dp))
                         .padding(horizontal = 14.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center
@@ -824,7 +832,15 @@ private fun VoiceEyesFreeBlackboardCard(
             AnswerOutcome.TIMEOUT -> Color(0xFFEF6C00)
         }
     } else {
-        MaterialTheme.colorScheme.primary
+        when {
+            state.phase == QuestionPhase.SPEECH_DETECTED -> Color(0xFF1E88E5)
+            state.phase == QuestionPhase.COUNTDOWN -> when {
+                state.timeProgress > 0.5f -> Color(0xFF10B981) // 充裕：生机绿
+                state.timeProgress > 0.25f -> Color(0xFFF97316) // 警示：暖阳橙
+                else -> Color(0xFFEF4444) // 临界冲刺：醒目红
+            }
+            else -> MaterialTheme.colorScheme.primary
+        }
     }
 
     // 远距离护眼超大字体：平板 84sp，手机 62sp
@@ -858,7 +874,7 @@ private fun VoiceEyesFreeBlackboardCard(
                     modifier = Modifier
                         .widthIn(min = if (isPad) 130.dp else 96.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surface)
+                        .background(MaterialTheme.colorScheme.surface).background(answerBoxBorderColor.copy(alpha = 0.06f))
                         .border(3.dp, answerBoxBorderColor, RoundedCornerShape(20.dp))
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
