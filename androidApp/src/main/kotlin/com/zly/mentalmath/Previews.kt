@@ -10,6 +10,9 @@ import com.zly.mentalmath.model.Question
 import com.zly.mentalmath.model.QuestionMode
 import com.zly.mentalmath.model.TimeLimitOption
 import com.zly.mentalmath.ui.HomeScreen
+import com.zly.mentalmath.model.QuestionStat
+import com.zly.mentalmath.model.SessionRecord
+import com.zly.mentalmath.ui.AnalysisScreen
 import com.zly.mentalmath.ui.PracticeScreen
 import com.zly.mentalmath.ui.PracticeUiState
 import com.zly.mentalmath.ui.QuestionPhase
@@ -99,6 +102,56 @@ fun PracticeScreenKeypadPreview() {
             onResumeSession = {},
             onOpenAnalysis = {},
             onExit = {}
+        )
+    }
+}
+
+private val sampleStats = mapOf(
+    "3+5" to QuestionStat("3+5", totalAttempts = 5, correctCount = 5, totalCorrectTimeMs = 4500L),
+    "9-4" to QuestionStat("9-4", totalAttempts = 4, correctCount = 4, totalCorrectTimeMs = 3800L),
+    "7+3" to QuestionStat("7+3", totalAttempts = 6, correctCount = 6, totalCorrectTimeMs = 4800L),
+    "8-5" to QuestionStat("8-5", totalAttempts = 4, correctCount = 2, wrongCount = 2, mistakeStreakToClear = 2),
+    "6+4" to QuestionStat("6+4", totalAttempts = 5, correctCount = 3, timeoutCount = 2, mistakeStreakToClear = 1),
+    "2+8" to QuestionStat("2+8", totalAttempts = 3, correctCount = 3, totalCorrectTimeMs = 2400L),
+    "10-7" to QuestionStat("10-7", totalAttempts = 4, correctCount = 2, wrongCount = 2, mistakeStreakToClear = 2)
+)
+
+private val sampleSessions = listOf(
+    SessionRecord(
+        id = 1L,
+        modeLabel = "加减混合",
+        timeLimitLabel = "2.0秒",
+        totalCount = 20,
+        correctCount = 18,
+        wrongCount = 1,
+        timeoutCount = 1,
+        avgResponseMs = 920L,
+        timestampMs = 1710000000000L
+    ),
+    SessionRecord(
+        id = 2L,
+        modeLabel = "加法专练",
+        timeLimitLabel = "1.5秒",
+        totalCount = 15,
+        correctCount = 15,
+        wrongCount = 0,
+        timeoutCount = 0,
+        avgResponseMs = 780L,
+        timestampMs = 1710003600000L
+    )
+)
+
+@Preview(name = "AnalysisScreen - Phone", showBackground = true, widthDp = 390, heightDp = 844)
+@Preview(name = "AnalysisScreen - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
+@Composable
+fun AnalysisScreenPreview() {
+    MaterialTheme {
+        AnalysisScreen(
+            statsMap = sampleStats,
+            sessions = sampleSessions,
+            onStartMistakePractice = {},
+            onRemoveMistake = {},
+            onBack = {}
         )
     }
 }
