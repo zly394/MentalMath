@@ -2,6 +2,7 @@ package com.zly.mentalmath.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -278,56 +279,88 @@ private fun PracticeTopHeader(
             )
         }
 
-        // 右栏：连对徽标 + 模式切换胶囊
+        // 右栏：模式切换胶囊
         Box(
-            modifier = Modifier.weight(1.3f),
+            modifier = Modifier.weight(1f),
             contentAlignment = Alignment.CenterEnd
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (state.comboCount >= 2) {
-                    Surface(
-                        color = Color(0xFFFFF3E0),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = "🔥 x${state.comboCount}",
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                            color = Color(0xFFE65100),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.sp
-                        )
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable {
+                        val next = if (isVoice) InputMode.KEYPAD else InputMode.VOICE
+                        onToggleInputMode(next)
                     }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable {
-                            val next = if (isVoice) InputMode.KEYPAD else InputMode.VOICE
-                            onToggleInputMode(next)
-                        }
-                ) {
-                    Text(
-                        text = if (isVoice) "🎤 语音·切按键" else "⌨️ 按键·切语音",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
+            ) {
+                Text(
+                    text = if (isVoice) "🎤 语音·切按键" else "⌨️ 按键·切语音",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
             }
         }
     }
 }
 
 /**
- * 固定答案框对齐的超大算式展示卡片：如 `6 + 2 = [ ? ]` -> `6 + 2 = [ 8 ]`
+ * 题目卡片内部右上角的荣誉连对印章（阶梯式激励：阳光橙 ➔ 能量红 ➔ 紫金超神）
+ */
+@Composable
+private fun ComboStampBadge(
+    comboCount: Int,
+    modifier: Modifier = Modifier
+) {
+    if (comboCount < 2) return
+
+    val label: String
+    val bgColor: Color
+    val textColor: Color
+    val borderColor: Color
+
+    when {
+        comboCount >= 10 -> {
+            label = "👑 $comboCount 连对 · 超神"
+            bgColor = Color(0xFFF3E5F5)
+            textColor = Color(0xFF7B1FA2)
+            borderColor = Color(0xFFCE93D8)
+        }
+        comboCount >= 5 -> {
+            label = "⚡ $comboCount 连对 · 火热"
+            bgColor = Color(0xFFFFEBEE)
+            textColor = Color(0xFFC62828)
+            borderColor = Color(0xFFEF9A9A)
+        }
+        else -> {
+            label = "🔥 $comboCount 连对"
+            bgColor = Color(0xFFFFF3E0)
+            textColor = Color(0xFFE65100)
+            borderColor = Color(0xFFFFCC80)
+        }
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = bgColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = textColor
+        )
+    }
+}
+
+/**
+ * 固定答案框对齐的超大算式展示卡片：如 6 + 2 = [ ? ] -> 6 + 2 = [ 8 ]
  */
 @Composable
 private fun QuestionBlackboardCard(
@@ -373,12 +406,20 @@ private fun QuestionBlackboardCard(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = if (isPad) 40.dp else 26.dp, horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            ComboStampBadge(
+                comboCount = state.comboCount,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 16.dp)
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = if (isPad) 40.dp else 26.dp, horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             // 算式行：左侧算式 + 等于号 + 固定宽度答案框，切换状态绝不抖动
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -441,6 +482,7 @@ private fun QuestionBlackboardCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
         }
     }
 }
@@ -813,12 +855,20 @@ private fun VoiceEyesFreeBlackboardCard(
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = if (isPad) 48.dp else 32.dp, horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            ComboStampBadge(
+                comboCount = state.comboCount,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp, end = 20.dp)
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = if (isPad) 48.dp else 32.dp, horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             // 算式展示行
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -903,6 +953,7 @@ private fun VoiceEyesFreeBlackboardCard(
                     )
                 }
             }
+        }
         }
     }
 }

@@ -271,6 +271,18 @@ class PracticeViewModel(
         questionStartTimeMs = 0L
 
         val config = _uiState.value.config
+        val currentCombo = _uiState.value.comboCount
+        val milestonePrefix = when {
+            currentCombo > 0 && currentCombo % 5 == 0 -> "${currentCombo}连对！"
+            currentCombo == 3 -> "3连对！"
+            else -> ""
+        }
+        val spokenText = if (milestonePrefix.isNotEmpty()) {
+            "$milestonePrefix ${nextQ.spokenQuestion}"
+        } else {
+            nextQ.spokenQuestion
+        }
+
         _uiState.update {
             it.copy(
                 currentIndex = index,
@@ -278,11 +290,11 @@ class PracticeViewModel(
                 phase = QuestionPhase.SPEAKING,
                 remainingMs = config.timeLimit.millis,
                 lockedElapsedMs = null,
-                voiceHint = "正在提问：${nextQ.spokenQuestion}"
+                voiceHint = if (milestonePrefix.isNotEmpty()) "$milestonePrefix 正在提问：${nextQ.spokenQuestion}" else "正在提问：${nextQ.spokenQuestion}"
             )
         }
 
-        speechEngine.speak(nextQ.spokenQuestion, onError = { reason ->
+        speechEngine.speak(spokenText, onError = { reason ->
             if (_uiState.value.isPracticing && !currentQuestionSettled && token == activeQuestionToken) {
                 if (SpeechLifecycle.prepareFromGesture != null) {
                     pauseSession()
