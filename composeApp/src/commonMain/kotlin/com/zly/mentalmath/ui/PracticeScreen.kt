@@ -242,6 +242,9 @@ fun PracticeScreen(
 /**
  * 三段式对称顶部导航与进度条（保证中间题号严格居中，右侧按钮单行不折行）
  */
+/**
+ * 纯粹护眼极简顶栏：单行对称呈现，去除边缘横向倒计时干扰，聚焦中央算式
+ */
 @Composable
 private fun PracticeTopHeader(
     state: PracticeUiState,
@@ -250,37 +253,55 @@ private fun PracticeTopHeader(
 ) {
     val isVoice = state.config.inputMode == InputMode.VOICE
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 左栏：退出
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.CenterStart
         ) {
-            // 左栏：退出
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                BackButton(onClick = onExit)
-            }
+            BackButton(onClick = onExit)
+        }
 
-            // 中栏：题号严格居中
-            Box(
-                modifier = Modifier.weight(1.1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "第 ${state.currentIndex + 1} / ${state.config.totalQuestions} 题",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1
-                )
-            }
+        // 中栏：题号严格居中
+        Box(
+            modifier = Modifier.weight(1.1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "第 ${state.currentIndex + 1} / ${state.config.totalQuestions} 题",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1
+            )
+        }
 
-            // 右栏：模式切换胶囊
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterEnd
+        // 右栏：连对徽标 + 模式切换胶囊
+        Box(
+            modifier = Modifier.weight(1.3f),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (state.comboCount >= 2) {
+                    Surface(
+                        color = Color(0xFFFFF3E0),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "🔥 x${state.comboCount}",
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            color = Color(0xFFE65100),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer,
@@ -298,66 +319,6 @@ private fun PracticeTopHeader(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
-        }
-
-        val progressColor = when {
-            state.phase == QuestionPhase.SPEECH_DETECTED -> Color(0xFF1E88E5)
-            state.timeProgress > 0.5f -> Color(0xFF2E7D32)
-            state.timeProgress > 0.25f -> Color(0xFFF57C00)
-            else -> Color(0xFFD32F2F)
-        }
-
-        LinearProgressIndicator(
-            progress = { state.timeProgress },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(10.dp)
-                .clip(RoundedCornerShape(5.dp)),
-            color = progressColor,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val timeText = when (state.phase) {
-                QuestionPhase.SPEAKING -> "🔊 正在语音提问..."
-                QuestionPhase.PREPARING_LISTENING -> "正在准备麦克风（尚未计时）"
-                QuestionPhase.COUNTDOWN -> {
-                    val sec = state.remainingMs / 100 / 10f
-                    "⏱ 剩余限时：${sec}秒（${state.config.timeLimit.label}档）"
-                }
-                QuestionPhase.SPEECH_DETECTED -> {
-                    val lockedSec = (state.lockedElapsedMs ?: 0L) / 100 / 10f
-                    "🎙 已开口锁表（反应 ${lockedSec}秒），识别中..."
-                }
-                QuestionPhase.FEEDBACK -> "本题结算"
-                QuestionPhase.SESSION_SUMMARY -> ""
-            }
-            Text(
-                text = timeText,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold,
-                color = progressColor,
-                maxLines = 1
-            )
-
-            if (state.comboCount >= 2) {
-                Surface(
-                    color = Color(0xFFFFF3E0),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        text = "🔥 连对 x${state.comboCount}",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        color = Color(0xFFE65100),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 12.sp
                     )
                 }
             }
