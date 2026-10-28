@@ -1,6 +1,7 @@
 package com.zly.mentalmath.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +25,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,11 +47,13 @@ import com.zly.mentalmath.model.Operator
 import com.zly.mentalmath.model.QuestionStat
 import com.zly.mentalmath.model.SessionRecord
 
+/**
+ * 精炼三主项：薄弱诊断、错题专练、全库热力
+ */
 private enum class AnalysisTab(val title: String) {
-    WEAKNESS("薄弱诊断"),
-    MISTAKE_BOOK("错题本"),
-    HEATMAP("熟练度矩阵"),
-    HISTORY("答题记录")
+    WEAKNESS("🩺 薄弱诊断"),
+    MISTAKE_BOOK("📕 错题专练"),
+    HEATMAP("📊 全库热力")
 }
 
 @Composable
@@ -67,9 +72,10 @@ fun AnalysisScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = if (isPad) 24.dp else 16.dp, vertical = 10.dp)
+                .padding(horizontal = if (isPad) 24.dp else 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 三段式对称顶部标题栏（解决标题与返回按钮拥挤错位）
+            // 顶栏：返回 + 居中标题
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -85,7 +91,7 @@ fun AnalysisScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "错题本 & 薄弱分析",
+                        text = "学情体检 & 错题复盘",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1
@@ -94,37 +100,33 @@ fun AnalysisScreen(
                 Box(modifier = Modifier.weight(1f))
             }
 
-            if (isPad) {
-                // Pad / 平板端：左右双栏看板（左栏切换薄弱诊断/错题本/记录，右栏常驻 10×10 熟练度矩阵热力图）
-                val padTabs = listOf(
-                    AnalysisTab.WEAKNESS,
-                    AnalysisTab.MISTAKE_BOOK,
-                    AnalysisTab.HISTORY
-                )
-                val activeLeftTab = if (currentTab == AnalysisTab.HEATMAP) {
-                    AnalysisTab.WEAKNESS
-                } else {
-                    currentTab
-                }
+            // 🌟 顶部学情体检总评看板（一目了然看清错题数、均速水准与全库掌握度）
+            AnalysisSummaryBanner(statsMap = statsMap)
 
-                Spacer(modifier = Modifier.height(8.dp))
+            if (isPad) {
+                // 平板端左右双栏：左侧诊断与错题消灭（高频互动），右侧全库热力与战报历史（全局纵览）
+                val padTabs = listOf(AnalysisTab.WEAKNESS, AnalysisTab.MISTAKE_BOOK)
+                val activeLeftTab = if (currentTab == AnalysisTab.HEATMAP) AnalysisTab.WEAKNESS else currentTab
 
                 Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // 左栏：诊断 / 错题本 / 历史记录
+                    // 左栏（50%）：薄弱诊断 / 错题专练
                     Column(
                         modifier = Modifier
-                            .weight(0.52f)
-                            .fillMaxHeight()
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         SegmentedTabRow(
                             tabs = padTabs,
                             selectedTab = activeLeftTab,
                             onSelectTab = { currentTab = it }
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
+
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -141,69 +143,192 @@ fun AnalysisScreen(
                                     onStartMistakePractice = onStartMistakePractice,
                                     onRemoveMistake = onRemoveMistake
                                 )
-                                AnalysisTab.HISTORY -> SessionHistoryTab(sessions = sessions)
                                 AnalysisTab.HEATMAP -> {}
                             }
                         }
                     }
 
-                    // 右栏：常驻 10×10 熟练度矩阵热力图
-                    Card(
+                    // 右栏（50%）：常驻 10×10 热力矩阵 + 近期训练历史
+                    Column(
                         modifier = Modifier
-                            .weight(0.48f)
-                            .fillMaxHeight(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = "10 × 10 熟练度全库热力矩阵",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                MasteryHeatmapTab(statsMap = statsMap)
+                            }
+                        }
+
+                        // 训练历史模块
+                        if (sessions.isNotEmpty()) {
                             Text(
-                                text = "10 × 10 熟练度矩阵热力图",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold
+                                text = "近期训练记录",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
                             )
-                            MasteryHeatmapTab(statsMap = statsMap)
+                            SessionHistoryTab(sessions = sessions)
                         }
                     }
                 }
             } else {
-                // 手机端：四等分对称分段标签栏 + 内容列表
+                // 手机端：舒展 3 Tab（薄弱诊断 / 错题专练 / 全库热力）
                 SegmentedTabRow(
                     tabs = AnalysisTab.entries,
                     selectedTab = currentTab,
                     onSelectTab = { currentTab = it }
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .weight(1f)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     when (currentTab) {
-                        AnalysisTab.WEAKNESS -> WeaknessDiagnosisTab(
-                            statsMap = statsMap,
-                            onStartMistakePractice = onStartMistakePractice
-                        )
+                        AnalysisTab.WEAKNESS -> {
+                            WeaknessDiagnosisTab(
+                                statsMap = statsMap,
+                                onStartMistakePractice = onStartMistakePractice
+                            )
+                            if (sessions.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "近期答题战报",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                SessionHistoryTab(sessions = sessions)
+                            }
+                        }
                         AnalysisTab.MISTAKE_BOOK -> MistakeBookTab(
                             statsMap = statsMap,
                             onStartMistakePractice = onStartMistakePractice,
                             onRemoveMistake = onRemoveMistake
                         )
-                        AnalysisTab.HEATMAP -> MasteryHeatmapTab(statsMap = statsMap)
-                        AnalysisTab.HISTORY -> SessionHistoryTab(sessions = sessions)
+                        AnalysisTab.HEATMAP -> {
+                            MasteryHeatmapTab(statsMap = statsMap)
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * 🌟 顶部学情体检总评看板（错题数、均速水准与全库掌握度）
+ */
+@Composable
+private fun AnalysisSummaryBanner(statsMap: Map<String, QuestionStat>) {
+    val mistakesCount = remember(statsMap) { statsMap.values.count { it.isInMistakeBook } }
+    val practicedStats = remember(statsMap) { statsMap.values.filter { it.totalAttempts > 0 } }
+    val avgSpeedMs = if (practicedStats.isEmpty()) 0L else practicedStats.map { it.avgResponseMs }.average().toLong()
+    val speedRating = when {
+        avgSpeedMs == 0L -> "未测"
+        avgSpeedMs < 1000L -> "极速 ⚡"
+        avgSpeedMs < 1500L -> "优秀 ✨"
+        avgSpeedMs < 2000L -> "良好 👍"
+        else -> "待提升 🌱"
+    }
+    val masteredCount = remember(statsMap) {
+        statsMap.values.count {
+            val level = WeaknessAnalyzer.evaluateMastery(it)
+            level == MasteryLevel.MASTERED || level == MasteryLevel.FAMILIAR
+        }
+    }
+    val masteryPercent = ((masteredCount / 132f) * 100).toInt()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SummaryPillItem(
+                icon = "📕",
+                label = "待消灭错题",
+                value = "${mistakesCount}题",
+                valueColor = if (mistakesCount > 0) Color(0xFFD32F2F) else Color(0xFF2E7D32)
+            )
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(28.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            )
+            SummaryPillItem(
+                icon = "⚡",
+                label = "均速评级",
+                value = if (avgSpeedMs == 0L) "--" else "${avgSpeedMs}ms ($speedRating)",
+                valueColor = MaterialTheme.colorScheme.primary
+            )
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(28.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            )
+            SummaryPillItem(
+                icon = "🏆",
+                label = "全库掌握率",
+                value = "$masteryPercent%",
+                valueColor = Color(0xFF2E7D32)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummaryPillItem(
+    icon: String,
+    label: String,
+    value: String,
+    valueColor: Color
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(icon, fontSize = 12.sp)
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = valueColor
+        )
     }
 }
 
@@ -216,7 +341,7 @@ private fun SegmentedTabRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 4.dp),
+            .padding(top = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         tabs.forEach { tab ->
@@ -234,17 +359,17 @@ private fun SegmentedTabRow(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(bgColor)
                     .clickable { onSelectTab(tab) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = tab.title,
-                    fontSize = 13.sp,
+                    fontSize = 13.5.sp,
                     maxLines = 1,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     color = textColor
                 )
             }
@@ -482,11 +607,15 @@ private fun MistakeBookTab(
     }
 }
 
+/**
+ * 🌟 交互式熟练度热力矩阵（去密恐化，点击色块实时查看单题微观透视）
+ */
 @Composable
 private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
     var selectedOp by remember { mutableStateOf(Operator.ADD) }
+    var selectedKey by remember { mutableStateOf<String?>(null) }
 
-    // 严格对称等宽切换按钮
+    // 运算符切换
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -507,7 +636,10 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
                     .height(36.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(bgColor)
-                    .clickable { selectedOp = op },
+                    .clickable {
+                        selectedOp = op
+                        selectedKey = null
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -525,6 +657,75 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
         }
     }
 
+    // 单题微观透视信息卡片（点击任何色块时触发）
+    val currentStat = selectedKey?.let { statsMap[it] }
+    val currentQuestion = selectedKey?.let { QuestionGenerator.findByKey(it) }
+
+    if (selectedKey != null && currentQuestion != null) {
+        val level = WeaknessAnalyzer.evaluateMastery(currentStat)
+        val levelName = when (level) {
+            MasteryLevel.MASTERED -> "🟢 秒杀精通 (<1.2s)"
+            MasteryLevel.FAMILIAR -> "🟡 熟练掌握 (1.2~2s)"
+            MasteryLevel.WEAK -> "🔴 错题薄弱"
+            MasteryLevel.UNPRACTICED -> "⚪ 尚未作答"
+        }
+        val cardBg = when (level) {
+            MasteryLevel.MASTERED -> Color(0xFFE8F5E9)
+            MasteryLevel.FAMILIAR -> Color(0xFFFFF8E1)
+            MasteryLevel.WEAK -> Color(0xFFFFEBEE)
+            MasteryLevel.UNPRACTICED -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = currentQuestion.fullExpression,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "$levelName · 累计答 ${currentStat?.totalAttempts ?: 0}次 · 均速 ${currentStat?.avgResponseMs ?: 0}ms",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (currentStat?.isInMistakeBook == true) {
+                    Surface(
+                        color = Color(0xFFFFCDD2),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "待消灭错题",
+                            color = Color(0xFFC62828),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Text(
+            text = "💡 点击下方任意色块，可查看单道算式的精确战绩与反应用时",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // 图例
     Text(
         text = "🟢 秒杀(<1.2s)   🟡 熟练(1.2~2s)   🔴 薄弱/错题   ⚪ 未练",
         style = MaterialTheme.typography.bodySmall,
@@ -533,6 +734,7 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
         textAlign = TextAlign.Center
     )
 
+    // 晶莹色块矩阵（去密恐化）
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (a in 0..10) {
             Row(
@@ -549,31 +751,44 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
                         Spacer(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(32.dp)
+                                .height(26.dp)
                         )
                     } else {
                         val key = "$a${selectedOp.symbol}$b"
-                        val level = WeaknessAnalyzer.evaluateMastery(statsMap[key])
+                        val stat = statsMap[key]
+                        val level = WeaknessAnalyzer.evaluateMastery(stat)
+                        val isSelected = selectedKey == key
                         val bg = when (level) {
                             MasteryLevel.MASTERED -> Color(0xFF81C784)
                             MasteryLevel.FAMILIAR -> Color(0xFFFFD54F)
                             MasteryLevel.WEAK -> Color(0xFFE57373)
                             MasteryLevel.UNPRACTICED -> MaterialTheme.colorScheme.surfaceVariant
                         }
+
+                        val borderModifier = when {
+                            isSelected -> Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                            stat?.isInMistakeBook == true -> Modifier.border(1.5.dp, Color(0xFFD32F2F), RoundedCornerShape(6.dp))
+                            else -> Modifier
+                        }
+
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(32.dp)
+                                .height(26.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(bg),
+                                .background(bg)
+                                .then(borderModifier)
+                                .clickable { selectedKey = key },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = key,
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(6.dp)
+                                        .height(6.dp)
+                                        .background(Color.White, RoundedCornerShape(3.dp))
+                                )
+                            }
                         }
                     }
                 }
