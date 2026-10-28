@@ -333,7 +333,7 @@ private fun QuestionBlackboardCard(
     val lastAttempt = state.lastAttempt
     val isFeedback = state.phase == QuestionPhase.FEEDBACK && lastAttempt != null
 
-    val cardColor = if (isFeedback && lastAttempt != null) {
+    val cardColor = if (isFeedback) {
         when (lastAttempt.outcome) {
             AnswerOutcome.CORRECT -> Color(0xFFE8F5E9)
             AnswerOutcome.WRONG -> Color(0xFFFFEBEE)
@@ -343,7 +343,7 @@ private fun QuestionBlackboardCard(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
     }
 
-    val answerBoxBorderColor = if (isFeedback && lastAttempt != null) {
+    val answerBoxBorderColor = if (isFeedback) {
         when (lastAttempt.outcome) {
             AnswerOutcome.CORRECT -> Color(0xFF2E7D32)
             AnswerOutcome.WRONG -> Color(0xFFC62828)
@@ -423,7 +423,7 @@ private fun QuestionBlackboardCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            if (isFeedback && lastAttempt != null) {
+            if (isFeedback) {
                 val feedbackText = when (lastAttempt.outcome) {
                     AnswerOutcome.CORRECT -> {
                         "✓ 回答正确！反应耗时 ${lastAttempt.elapsedMs} ms"
@@ -788,7 +788,7 @@ private fun VoiceEyesFreeBlackboardCard(
     val lastAttempt = state.lastAttempt
     val isFeedback = state.phase == QuestionPhase.FEEDBACK && lastAttempt != null
 
-    val cardColor = if (isFeedback && lastAttempt != null) {
+    val cardColor = if (isFeedback) {
         when (lastAttempt.outcome) {
             AnswerOutcome.CORRECT -> Color(0xFFE8F5E9)
             AnswerOutcome.WRONG -> Color(0xFFFFEBEE)
@@ -798,7 +798,7 @@ private fun VoiceEyesFreeBlackboardCard(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     }
 
-    val answerBoxBorderColor = if (isFeedback && lastAttempt != null) {
+    val answerBoxBorderColor = if (isFeedback) {
         when (lastAttempt.outcome) {
             AnswerOutcome.CORRECT -> Color(0xFF2E7D32)
             AnswerOutcome.WRONG -> Color(0xFFC62828)
@@ -884,7 +884,7 @@ private fun VoiceEyesFreeBlackboardCard(
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = when {
-                    isFeedback && lastAttempt != null -> when (lastAttempt.outcome) {
+                    isFeedback -> when (lastAttempt.outcome) {
                         AnswerOutcome.CORRECT -> Color(0xFFDCFCE7)
                         AnswerOutcome.WRONG -> Color(0xFFFEE2E2)
                         AnswerOutcome.TIMEOUT -> Color(0xFFFEF3C7)
@@ -900,7 +900,7 @@ private fun VoiceEyesFreeBlackboardCard(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     val (icon, text, textColor) = when {
-                        isFeedback && lastAttempt != null -> when (lastAttempt.outcome) {
+                        isFeedback -> when (lastAttempt.outcome) {
                             AnswerOutcome.CORRECT -> Triple("✓", "回答正确！用时 ${lastAttempt.elapsedMs}ms", Color(0xFF166534))
                             AnswerOutcome.WRONG -> Triple("✗", "回答了 ${lastAttempt.userAnswer}，正确是 ${question.answer}", Color(0xFF991B1B))
                             AnswerOutcome.TIMEOUT -> Triple("⏰", "超时未答，正确答案是 ${question.answer}", Color(0xFF92400E))
