@@ -726,22 +726,93 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
         )
     }
 
-    // 图例
-    Text(
-        text = "🟢 秒杀(<1.2s)   🟡 熟练(1.2~2s)   🔴 薄弱/错题   ⚪ 未练",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-        textAlign = TextAlign.Center
-    )
+    val selectedA = currentQuestion?.a
+    val selectedB = currentQuestion?.b
 
-    // 晶莹色块矩阵（去密恐化）
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // 图例与坐标轴说明
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "纵轴 a  ${selectedOp.symbol}  横轴 b",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "🟢 秒杀  🟡 熟练  🔴 薄弱  ⚪ 未练",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp
+        )
+    }
+
+    // 晶莹色块矩阵（含轻量坐标轴与十字精准定位）
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        // 顶部横坐标表头 (b = 0..10)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左上角原点运算符标记
+            Box(
+                modifier = Modifier.width(20.dp).height(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = selectedOp.symbol,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+
+            for (b in 0..10) {
+                val isColSelected = selectedB == b
+                Box(
+                    modifier = Modifier.weight(1f).height(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = b.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = if (isColSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        color = if (isColSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                    )
+                }
+            }
+        }
+
+        // 矩阵数据行 (a = 0..10)
         for (a in 0..10) {
+            val isRowSelected = selectedA == a
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // 左侧纵坐标数字 (a = 0..10)
+                Box(
+                    modifier = Modifier.width(20.dp).height(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = a.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = if (isRowSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        color = if (isRowSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                    )
+                }
+
                 for (b in 0..10) {
                     val valid = if (selectedOp == Operator.ADD) {
                         a + b <= 10
@@ -752,7 +823,7 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
                         Spacer(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(26.dp)
+                                .height(24.dp)
                         )
                     } else {
                         val key = "$a${selectedOp.symbol}$b"
@@ -767,16 +838,16 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
                         }
 
                         val borderModifier = when {
-                            isSelected -> Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
-                            stat?.isInMistakeBook == true -> Modifier.border(1.5.dp, Color(0xFFD32F2F), RoundedCornerShape(6.dp))
+                            isSelected -> Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(5.dp))
+                            stat?.isInMistakeBook == true -> Modifier.border(1.5.dp, Color(0xFFD32F2F), RoundedCornerShape(5.dp))
                             else -> Modifier
                         }
 
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(26.dp)
-                                .clip(RoundedCornerShape(6.dp))
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(5.dp))
                                 .background(bg)
                                 .then(borderModifier)
                                 .clickable { selectedKey = key },
