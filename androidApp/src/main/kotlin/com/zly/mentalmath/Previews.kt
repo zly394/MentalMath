@@ -70,6 +70,7 @@ fun PracticeScreenVoicePreview() {
     }
 }
 
+@Preview(name = "PracticeScreen (Keypad) - Phone", showBackground = true, widthDp = 412, heightDp = 892)
 @Preview(name = "PracticeScreen (Keypad) - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
 @Composable
 fun PracticeScreenKeypadPreview() {

@@ -406,20 +406,29 @@ private fun QuestionBlackboardCard(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            ComboStampBadge(
-                comboCount = state.comboCount,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 12.dp, end = 16.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = if (isPad) 40.dp else 26.dp, horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    top = if (isPad) 20.dp else 14.dp,
+                    bottom = if (isPad) 28.dp else 20.dp,
+                    start = 16.dp,
+                    end = 16.dp
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (state.comboCount >= 2) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = if (isPad) 12.dp else 8.dp)
+                ) {
+                    ComboStampBadge(
+                        comboCount = state.comboCount,
+                        modifier = Modifier.align(if (isPad) Alignment.TopEnd else Alignment.Center)
+                    )
+                }
+            }
             // 算式行：左侧算式 + 等于号 + 固定宽度答案框，切换状态绝不抖动
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -482,7 +491,6 @@ private fun QuestionBlackboardCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
         }
     }
 }
@@ -855,20 +863,29 @@ private fun VoiceEyesFreeBlackboardCard(
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            ComboStampBadge(
-                comboCount = state.comboCount,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 16.dp, end = 20.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = if (isPad) 48.dp else 32.dp, horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    top = if (isPad) 24.dp else 16.dp,
+                    bottom = if (isPad) 36.dp else 24.dp,
+                    start = 16.dp,
+                    end = 16.dp
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (state.comboCount >= 2) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = if (isPad) 16.dp else 12.dp)
+                ) {
+                    ComboStampBadge(
+                        comboCount = state.comboCount,
+                        modifier = Modifier.align(if (isPad) Alignment.TopEnd else Alignment.Center)
+                    )
+                }
+            }
             // 算式展示行
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -953,7 +970,6 @@ private fun VoiceEyesFreeBlackboardCard(
                     )
                 }
             }
-        }
         }
     }
 }
