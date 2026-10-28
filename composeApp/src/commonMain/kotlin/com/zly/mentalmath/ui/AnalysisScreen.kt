@@ -62,11 +62,14 @@ private enum class AnalysisTab(val title: String) {
 fun AnalysisScreen(
     statsMap: Map<String, QuestionStat>,
     sessions: List<SessionRecord>,
+    initialTabIndex: Int = 0,
     onStartMistakePractice: () -> Unit,
     onRemoveMistake: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    var currentTab by remember { mutableStateOf(AnalysisTab.WEAKNESS) }
+    var currentTab by remember {
+        mutableStateOf(AnalysisTab.entries.getOrElse(initialTabIndex) { AnalysisTab.WEAKNESS })
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isPad = maxWidth >= 600.dp
@@ -690,93 +693,8 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
         }
     }
 
-    // 单题微观透视信息卡片（点击任何色块时触发）
     val currentStat = selectedKey?.let { statsMap[it] }
     val currentQuestion = selectedKey?.let { QuestionGenerator.findByKey(it) }
-
-    if (selectedKey != null && currentQuestion != null) {
-        val level = WeaknessAnalyzer.evaluateMastery(currentStat)
-        val levelName = when (level) {
-            MasteryLevel.MASTERED -> "秒杀精通 (<1.2s)"
-            MasteryLevel.FAMILIAR -> "熟练掌握 (1.2~2s)"
-            MasteryLevel.WEAK -> "错题薄弱"
-            MasteryLevel.UNPRACTICED -> "尚未作答"
-        }
-        val dotColor = when (level) {
-            MasteryLevel.MASTERED -> Color(0xFF10B981)
-            MasteryLevel.FAMILIAR -> Color(0xFFF59E0B)
-            MasteryLevel.WEAK -> Color(0xFFEF4444)
-            MasteryLevel.UNPRACTICED -> Color(0xFF94A3B8)
-        }
-        val cardBg = when (level) {
-            MasteryLevel.MASTERED -> Color(0xFFE8F5E9)
-            MasteryLevel.FAMILIAR -> Color(0xFFFFF8E1)
-            MasteryLevel.WEAK -> Color(0xFFFFEBEE)
-            MasteryLevel.UNPRACTICED -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-        }
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBg)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = currentQuestion.fullExpression,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        AppIcons.StatusDot(color = dotColor, size = 6.dp)
-                        Text(
-                            text = "$levelName · 累计答 ${currentStat?.totalAttempts ?: 0}次 · 均速 ${currentStat?.avgResponseMs ?: 0}ms",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                if (currentStat?.isInMistakeBook == true) {
-                    Surface(
-                        color = Color(0xFFFFCDD2),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "待消灭错题",
-                            color = Color(0xFFC62828),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-            }
-        }
-    } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AppIcons.Lightbulb(modifier = Modifier.size(13.dp), tint = Color(0xFFD97706))
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "点击下方任意色块，可查看单道算式的精确战绩与反应用时",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-
     val selectedA = currentQuestion?.a
     val selectedB = currentQuestion?.b
 
@@ -930,6 +848,100 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(2.dp))
+
+    // 单题微观透视信息卡片（置于热力图下方，保证热力图在点击探查时绝对零跳动）
+    if (selectedKey != null && currentQuestion != null) {
+        val level = WeaknessAnalyzer.evaluateMastery(currentStat)
+        val levelName = when (level) {
+            MasteryLevel.MASTERED -> "秒杀精通 (<1.2s)"
+            MasteryLevel.FAMILIAR -> "熟练掌握 (1.2~2s)"
+            MasteryLevel.WEAK -> "错题薄弱"
+            MasteryLevel.UNPRACTICED -> "尚未作答"
+        }
+        val dotColor = when (level) {
+            MasteryLevel.MASTERED -> Color(0xFF10B981)
+            MasteryLevel.FAMILIAR -> Color(0xFFF59E0B)
+            MasteryLevel.WEAK -> Color(0xFFEF4444)
+            MasteryLevel.UNPRACTICED -> Color(0xFF94A3B8)
+        }
+        val cardBg = when (level) {
+            MasteryLevel.MASTERED -> Color(0xFFE8F5E9)
+            MasteryLevel.FAMILIAR -> Color(0xFFFFF8E1)
+            MasteryLevel.WEAK -> Color(0xFFFFEBEE)
+            MasteryLevel.UNPRACTICED -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = currentQuestion.fullExpression,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        AppIcons.StatusDot(color = dotColor, size = 6.dp)
+                        Text(
+                            text = "$levelName · 累计答 ${currentStat?.totalAttempts ?: 0}次 · 均速 ${currentStat?.avgResponseMs ?: 0}ms",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (currentStat?.isInMistakeBook == true) {
+                    Surface(
+                        color = Color(0xFFFFCDD2),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "待消灭错题",
+                            color = Color(0xFFC62828),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppIcons.Lightbulb(modifier = Modifier.size(13.dp), tint = Color(0xFFD97706))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "点击上方任意色块，可查看单道算式的精确战绩与反应用时",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

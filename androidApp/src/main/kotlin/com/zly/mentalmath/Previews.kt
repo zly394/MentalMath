@@ -201,3 +201,19 @@ fun AnalysisScreenPreview() {
         )
     }
 }
+
+
+@Preview(name = "AnalysisScreen (Heatmap) - Phone", showBackground = true, widthDp = 390, heightDp = 844)
+@Composable
+fun AnalysisScreenHeatmapPreview() {
+    MaterialTheme {
+        AnalysisScreen(
+            statsMap = sampleStats,
+            sessions = sampleSessions,
+            initialTabIndex = 2,
+            onStartMistakePractice = {},
+            onRemoveMistake = {},
+            onBack = {}
+        )
+    }
+}
