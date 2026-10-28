@@ -38,6 +38,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.remember
+import com.zly.mentalmath.domain.WeaknessAnalyzer
+import com.zly.mentalmath.model.MasteryLevel
 import com.zly.mentalmath.model.InputMode
 import com.zly.mentalmath.model.PracticeConfig
 import com.zly.mentalmath.model.QuestionMode
@@ -289,7 +292,12 @@ private fun OverviewDashboardCard(
     onStartMistakeReview: () -> Unit
 ) {
     val totalCount = 132
-    val masteredCount = statsMap.values.count { it.totalAttempts > 0 && !it.isInMistakeBook && it.correctCount > 0 }
+    val masteredCount = remember(statsMap) {
+        statsMap.values.count {
+            val level = WeaknessAnalyzer.evaluateMastery(it)
+            level == MasteryLevel.MASTERED || level == MasteryLevel.FAMILIAR
+        }
+    }
     val pendingCount = (totalCount - masteredCount - mistakeCount).coerceAtLeast(0)
     val percent = ((masteredCount.toFloat() / totalCount) * 100).toInt()
 

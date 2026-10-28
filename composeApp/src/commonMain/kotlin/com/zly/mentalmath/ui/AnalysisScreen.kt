@@ -240,8 +240,9 @@ fun AnalysisScreen(
 @Composable
 private fun AnalysisSummaryBanner(statsMap: Map<String, QuestionStat>) {
     val mistakesCount = remember(statsMap) { statsMap.values.count { it.isInMistakeBook } }
-    val practicedStats = remember(statsMap) { statsMap.values.filter { it.totalAttempts > 0 } }
-    val avgSpeedMs = if (practicedStats.isEmpty()) 0L else practicedStats.map { it.avgResponseMs }.average().toLong()
+    val totalCorrectCount = remember(statsMap) { statsMap.values.sumOf { it.correctCount.toLong() } }
+    val totalCorrectTimeMs = remember(statsMap) { statsMap.values.sumOf { it.totalCorrectTimeMs } }
+    val avgSpeedMs = if (totalCorrectCount > 0L) totalCorrectTimeMs / totalCorrectCount else 0L
     val speedRating = when {
         avgSpeedMs == 0L -> "未测"
         avgSpeedMs < 1000L -> "极速 ⚡"
