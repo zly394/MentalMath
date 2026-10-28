@@ -10,6 +10,7 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
+import platform.AudioToolbox.AudioServicesPlaySystemSound
 import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
@@ -172,6 +173,11 @@ actual class SpeechEngine actual constructor() {
                 }
             }
         }
+    }
+
+        actual fun playFeedbackSound(isCombo: Boolean) {
+        val soundId = if (isCombo) 1025u else 1057u
+        AudioServicesPlaySystemSound(soundId)
     }
 
     actual fun setVoiceMode(enabled: Boolean) = Unit

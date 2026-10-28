@@ -519,6 +519,9 @@ class PracticeViewModel(
         repository.recordAttempt(attempt, state.config.timeLimit.millis)
 
         val newCombo = if (outcome == AnswerOutcome.CORRECT) state.comboCount + 1 else 0
+        if (outcome == AnswerOutcome.CORRECT) {
+            speechEngine.playFeedbackSound(isCombo = newCombo >= 3)
+        }
         val newMaxCombo = maxOf(state.maxCombo, newCombo)
         val updatedAttempts = state.roundAttempts + attempt
 

@@ -61,6 +61,56 @@ actual class SpeechEngine actual constructor() {
 
         private val initExecutor = Executors.newSingleThreadExecutor()
 
+        private val singleFeedbackPcm: ByteArray by lazy {
+            generateTonePcm(durationMs = 120, startFreq = 880f, endFreq = 1320f)
+        }
+        private val comboFeedbackPcm: ByteArray by lazy {
+            generateComboTonePcm()
+        }
+
+        private fun generateTonePcm(durationMs: Int, startFreq: Float, endFreq: Float): ByteArray {
+            val totalSamples = (SAMPLE_RATE * durationMs) / 1000
+            val bytes = ByteArray(totalSamples * 2)
+            var phase = 0.0
+            for (i in 0 until totalSamples) {
+                val progress = i.toFloat() / totalSamples
+                val currentFreq = startFreq + (endFreq - startFreq) * progress
+                phase += 2.0 * Math.PI * currentFreq / SAMPLE_RATE
+                val envelope = kotlin.math.sin(progress * Math.PI).toFloat().coerceIn(0f, 1f)
+                val sample = (kotlin.math.sin(phase) * envelope * 7500f).toInt().coerceIn(-32767, 32767)
+                bytes[i * 2] = (sample and 0xFF).toByte()
+                bytes[i * 2 + 1] = ((sample shr 8) and 0xFF).toByte()
+            }
+            return bytes
+        }
+
+        private fun generateComboTonePcm(): ByteArray {
+            val durationMs = 200
+            val totalSamples = (SAMPLE_RATE * durationMs) / 1000
+            val bytes = ByteArray(totalSamples * 2)
+            val halfSamples = totalSamples / 2
+            var phase1 = 0.0
+            var phase2 = 0.0
+            for (i in 0 until totalSamples) {
+                val sampleVal = if (i < halfSamples) {
+                    val progress = i.toFloat() / halfSamples
+                    phase1 += 2.0 * Math.PI * 1046.0 / SAMPLE_RATE
+                    val envelope = kotlin.math.sin(progress * Math.PI).toFloat()
+                    (kotlin.math.sin(phase1) * envelope * 7500f).toInt()
+                } else {
+                    val progress = (i - halfSamples).toFloat() / halfSamples
+                    val freq = 1318.0 + (1568.0 - 1318.0) * progress
+                    phase2 += 2.0 * Math.PI * freq / SAMPLE_RATE
+                    val envelope = kotlin.math.sin(progress * Math.PI).toFloat()
+                    (kotlin.math.sin(phase2) * envelope * 8000f).toInt()
+                }
+                val clamped = sampleVal.coerceIn(-32767, 32767)
+                bytes[i * 2] = (clamped and 0xFF).toByte()
+                bytes[i * 2 + 1] = ((clamped shr 8) and 0xFF).toByte()
+            }
+            return bytes
+        }
+
         fun bindContext(
             context: Context,
             requestPermission: (onResult: (Boolean) -> Unit) -> Unit
@@ -236,6 +286,41 @@ actual class SpeechEngine actual constructor() {
             SAMPLE_RATE.toFloat(),
             NUMBER_GRAMMAR_JSON
         )
+    }
+
+    actual fun playFeedbackSound(isCombo: Boolean) {
+        audioExecutor.execute {
+            try {
+                val data = if (isCombo) comboFeedbackPcm else singleFeedbackPcm
+                val track = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(SAMPLE_RATE)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(data.size.coerceAtLeast(4096))
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build()
+                track.write(data, 0, data.size)
+                track.play()
+                val sleepMs = (data.size / 32L) + 30L
+                Thread.sleep(sleepMs)
+                try {
+                    track.stop()
+                    track.release()
+                } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w(TAG, "Feedback sound play error", e)
+            }
+        }
     }
 
     actual fun setVoiceMode(enabled: Boolean) = Unit
