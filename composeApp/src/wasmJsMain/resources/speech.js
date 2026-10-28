@@ -374,53 +374,30 @@ class MentalMathBrowserSpeech {
     }
   }
 
-  playFeedbackSound(isCombo) {
+  playCorrectSound() {
     try {
-      const context = MentalMathBrowserSpeech.audioContext;
+      const context = this.audioContext();
       if (!context || context.state !== 'running' || !context.createOscillator) return;
       const now = context.currentTime;
-      if (!isCombo) {
-        // 轻快水滴微音（~120ms）：880Hz -> 1320Hz 柔和快速滑音，极轻音量
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, now);
-        osc.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
-        gain.gain.setValueAtTime(0.16, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-        osc.connect(gain);
-        gain.connect(context.destination);
-        osc.start(now);
-        osc.stop(now + 0.12);
-      } else {
-        // 连对欢呼双音（~200ms）：C6 (1046Hz) + G6 (1568Hz) 灵动跳音
-        const osc1 = context.createOscillator();
-        const gain1 = context.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(1046, now);
-        gain1.gain.setValueAtTime(0.18, now);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-        osc1.connect(gain1);
-        gain1.connect(context.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.08);
-
-        const osc2 = context.createOscillator();
-        const gain2 = context.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1318, now + 0.07);
-        osc2.frequency.exponentialRampToValueAtTime(1568, now + 0.18);
-        gain2.gain.setValueAtTime(0.001, now);
-        gain2.gain.setValueAtTime(0.2, now + 0.07);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-        osc2.connect(gain2);
-        gain2.connect(context.destination);
-        osc2.start(now + 0.07);
-        osc2.stop(now + 0.22);
-      }
+      // 统一极轻柔温润水滴音（~90ms）：780Hz -> 1080Hz 微滑音，低音量 0.09，耐听不吵
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(780, now);
+      osc.frequency.exponentialRampToValueAtTime(1080, now + 0.07);
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      osc.connect(gain);
+      gain.connect(context.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
     } catch (e) {
-      console.warn('Feedback sound playback failed:', e);
+      console.warn('Correct sound playback failed:', e);
     }
+  }
+
+  playFeedbackSound(isCombo) {
+    this.playCorrectSound();
   }
 
   playWrongSound() {

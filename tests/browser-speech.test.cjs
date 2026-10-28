@@ -895,14 +895,12 @@ test('speech synthesis fallback also preserves the voice training session', asyn
 });
 
 
-test('playFeedbackSound synthesizes gentle micro chime for correct answer and combo', async () => {
+test('playCorrectSound synthesizes gentle micro water drop for correct answer', async () => {
   const env = environment();
   await env.ready;
   env.engine.audioContext();
-  env.engine.playFeedbackSound(false);
+  env.engine.playCorrectSound();
   assert.ok(env.operations.includes('oscillator-start'));
-  env.engine.playFeedbackSound(true);
-  assert.equal(env.operations.filter(op => op === 'oscillator-start').length, 3);
 });
 
 test('playWrongSound synthesizes gentle low wood tap for wrong or timeout', async () => {

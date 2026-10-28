@@ -175,9 +175,8 @@ actual class SpeechEngine actual constructor() {
         }
     }
 
-        actual fun playFeedbackSound(isCombo: Boolean) {
-        val soundId = if (isCombo) 1025u else 1057u
-        AudioServicesPlaySystemSound(soundId)
+    actual fun playCorrectSound() {
+        AudioServicesPlaySystemSound(1057u)
     }
 
     actual fun playWrongSound() {

@@ -50,10 +50,9 @@ expect class SpeechEngine() {
     fun stopAll()
 
     /**
-     * 播放答对即时轻快确认微音效（< 200ms），不拖慢心算极速节奏
-     * @param isCombo 是否为连对激励（连对 >= 3 时播放更具成就感的双音符水滴音）
+     * 播放答对即时轻快确认微音效（~90ms，柔和水滴轻音，低音量），不拖慢心算极速节奏
      */
-    fun playFeedbackSound(isCombo: Boolean)
+    fun playCorrectSound()
 
     /**
      * 播放答错或超时温和木质微音（~80ms，低音量），提供盲听确认，无压迫感

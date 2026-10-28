@@ -23,7 +23,7 @@ private external class MentalMathBrowserSpeech : JsAny {
         onCandidates: (String, Boolean) -> Boolean,
         onError: (String) -> Unit
     )
-    fun playFeedbackSound(isCombo: Boolean)
+    fun playCorrectSound()
     fun playWrongSound()
     fun stopAll()
     fun release()
@@ -80,8 +80,8 @@ actual class SpeechEngine actual constructor() {
         )
     }
 
-    actual fun playFeedbackSound(isCombo: Boolean) {
-        browser.playFeedbackSound(isCombo)
+    actual fun playCorrectSound() {
+        browser.playCorrectSound()
     }
 
     actual fun playWrongSound() {

@@ -520,7 +520,7 @@ class PracticeViewModel(
 
         val newCombo = if (outcome == AnswerOutcome.CORRECT) state.comboCount + 1 else 0
         when (outcome) {
-            AnswerOutcome.CORRECT -> speechEngine.playFeedbackSound(isCombo = newCombo >= 3)
+            AnswerOutcome.CORRECT -> speechEngine.playCorrectSound()
             AnswerOutcome.WRONG, AnswerOutcome.TIMEOUT -> speechEngine.playWrongSound()
         }
         val newMaxCombo = maxOf(state.maxCombo, newCombo)
