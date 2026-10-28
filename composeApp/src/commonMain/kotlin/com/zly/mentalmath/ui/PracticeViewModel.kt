@@ -79,7 +79,14 @@ class PracticeViewModel(
     private var sessionRequestToken = 0L
     private var pendingSessionConfig: PracticeConfig? = null
 
-    private val _uiState = MutableStateFlow(PracticeUiState())
+    private val _uiState = MutableStateFlow(
+        repository.loadPracticeConfig().let { saved ->
+            PracticeUiState(
+                config = saved,
+                remainingMs = saved.timeLimit.millis
+            )
+        }
+    )
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
     private val pauseListener: () -> Unit = { pauseSession() }
 
@@ -119,13 +126,19 @@ class PracticeViewModel(
     }
 
     fun updateQuestionMode(mode: QuestionMode) {
-        _uiState.update { it.copy(config = it.config.copy(questionMode = mode)) }
+        _uiState.update { current ->
+            val updatedConfig = current.config.copy(questionMode = mode)
+            repository.savePracticeConfig(updatedConfig)
+            current.copy(config = updatedConfig)
+        }
     }
 
     fun updateTimeLimit(limit: TimeLimitOption) {
-        _uiState.update {
-            it.copy(
-                config = it.config.copy(timeLimit = limit),
+        _uiState.update { current ->
+            val updatedConfig = current.config.copy(timeLimit = limit)
+            repository.savePracticeConfig(updatedConfig)
+            current.copy(
+                config = updatedConfig,
                 remainingMs = limit.millis
             )
         }
@@ -148,9 +161,11 @@ class PracticeViewModel(
     }
 
     private fun applyInputModeSwitch(mode: InputMode, hint: String) {
-        _uiState.update {
-            it.copy(
-                config = it.config.copy(inputMode = mode),
+        _uiState.update { current ->
+            val updatedConfig = current.config.copy(inputMode = mode)
+            repository.savePracticeConfig(updatedConfig)
+            current.copy(
+                config = updatedConfig,
                 voiceHint = hint
             )
         }

@@ -26,50 +26,260 @@
             touch-action: manipulation;
         }
         #app { width: 100%; height: 100%; }
+
+        /* 弱化后的轻量离线语音状态条与微型胶囊（靠右上角定位，完全不遮挡左侧 Title） */
         #offline-status {
             position: fixed;
-            top: max(12px, env(safe-area-inset-top));
-            left: 50%;
-            transform: translateX(-50%);
-            box-sizing: border-box;
-            width: min(420px, calc(100% - 24px));
-            padding: 16px 44px 16px 16px;
-            border: 1px solid #BFDBFE;
-            border-radius: 16px;
-            background: #EFF6FF;
-            color: #1E3A8A;
-            box-shadow: 0 4px 20px #1E3A8A22;
-            font: 14px/1.5 system-ui, sans-serif;
+            top: 0;
+            left: 0;
+            right: 0;
             z-index: 900;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            padding-right: max(16px, env(safe-area-inset-right));
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
         }
-        #offline-status-title { display: block; font-size: 16px; }
-        #offline-status-detail { margin: 6px 0 0; }
-        #offline-status-progress { width: 100%; height: 8px; margin-top: 10px; accent-color: #1D4ED8; }
+        #offline-status[hidden] {
+            display: none;
+        }
+        #offline-status-progress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2.5px;
+            margin: 0;
+            border: none;
+            background: transparent;
+            accent-color: #2563EB;
+            z-index: 902;
+        }
+        #offline-status-progress::-webkit-progress-bar {
+            background-color: rgba(226, 232, 240, 0.4);
+        }
+        #offline-status-progress::-webkit-progress-value {
+            background: linear-gradient(90deg, #3B82F6, #1D4ED8);
+        }
+        .offline-status-pill {
+            pointer-events: auto;
+            margin-top: max(8px, env(safe-area-inset-top));
+            padding: 5px 12px 5px 10px;
+            box-sizing: border-box;
+            max-width: min(340px, calc(100% - 32px));
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.92);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(203, 213, 225, 0.8);
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.25s ease;
+        }
+        .offline-status-icon {
+            font-size: 13px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .offline-status-texts {
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            min-width: 0;
+        }
+        #offline-status-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #1E293B;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        /* 正常加载态隐藏长文本说明，保持极简微型徽标，彻底不挡 Title */
+        #offline-status-detail {
+            display: none;
+            margin: 0;
+            font-size: 11px;
+            color: #64748B;
+        }
+        /* 仅在发生错误需要重试时展示错误细节 */
+        .offline-status-pill:has(#offline-status-retry:not([hidden])) #offline-status-detail {
+            display: block;
+            margin-top: 4px;
+            white-space: normal;
+            max-width: 100%;
+            color: #991B1B;
+        }
         #offline-status button {
-            min-height: 44px;
             border: 0;
             background: transparent;
             color: #1D4ED8;
             font: inherit;
             cursor: pointer;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        #offline-status #offline-status-close { position: absolute; top: 0; right: 0; width: 44px; font-size: 24px; }
-        #offline-status #offline-status-retry { padding: 0; font-weight: 600; }
+        #offline-status #offline-status-close {
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            font-size: 15px;
+            line-height: 1;
+            border-radius: 50%;
+            color: #94A3B8;
+            margin-left: 2px;
+        }
+        #offline-status #offline-status-close:hover {
+            color: #475569;
+            background: rgba(0, 0, 0, 0.05);
+        }
+        #offline-status #offline-status-retry {
+            padding: 2px 8px;
+            min-height: 22px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #2563EB;
+            color: #FFFFFF;
+            border-radius: 9999px;
+        }
+        .offline-status-pill:has(#offline-status-retry:not([hidden])) {
+            border-radius: 14px;
+            padding: 10px 14px;
+            max-width: min(400px, calc(100% - 24px));
+            flex-wrap: wrap;
+            background: #FEF2F2;
+            border-color: #FECACA;
+        }
+        .offline-status-pill:has(#offline-status-retry:not([hidden])) #offline-status-title {
+            color: #DC2626;
+        }
+        .offline-status-pill:has(#offline-status-retry:not([hidden])) #offline-status-detail {
+            white-space: normal;
+            max-width: 100%;
+            color: #991B1B;
+        }
+
+        /* 现代化品牌 Splash 启动屏 */
+        #boot-status {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-content: center;
+            padding: 24px;
+            z-index: 1000;
+            background: #F8FAFC;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            text-align: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .boot-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            max-width: 320px;
+            margin: 0 auto;
+        }
+        .boot-logo {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+            margin-bottom: 12px;
+            animation: boot-pulse 2.4s ease-in-out infinite;
+        }
+        @keyframes boot-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+        }
+        .boot-app-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0F172A;
+            letter-spacing: -0.01em;
+            margin-bottom: 16px;
+        }
+        .boot-spinner {
+            width: 26px;
+            height: 26px;
+            border: 2.5px solid #E2E8F0;
+            border-top-color: #2563EB;
+            border-radius: 50%;
+            animation: boot-spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+        @keyframes boot-spin {
+            to { transform: rotate(360deg); }
+        }
+        #boot-status[role="alert"] .boot-spinner {
+            display: none;
+        }
+        #boot-title {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        #boot-detail {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #64748B;
+        }
+        #boot-status[role="alert"] #boot-title {
+            color: #DC2626;
+        }
+        #boot-retry {
+            margin-top: 16px;
+            padding: 8px 22px;
+            min-height: 38px;
+            border: 0;
+            border-radius: 9999px;
+            background: #2563EB;
+            color: #FFFFFF;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+            transition: background 0.15s, transform 0.1s;
+        }
+        #boot-retry:hover {
+            background: #1D4ED8;
+        }
+        #boot-retry:active {
+            transform: scale(0.97);
+        }
     </style>
 </head>
 <body>
     <div id="app"></div>
     <aside id="offline-status" role="status" aria-live="polite" aria-atomic="true" hidden>
-        <strong id="offline-status-title"></strong>
-        <p id="offline-status-detail"></p>
         <progress id="offline-status-progress" max="1" aria-label="离线语音模型加载进度"></progress>
-        <button id="offline-status-retry" type="button" hidden>重试加载</button>
-        <button id="offline-status-close" type="button" aria-label="收起离线加载提示">×</button>
+        <div class="offline-status-pill">
+            <span class="offline-status-icon" aria-hidden="true">🎙️</span>
+            <div class="offline-status-texts">
+                <strong id="offline-status-title"></strong>
+                <p id="offline-status-detail"></p>
+            </div>
+            <button id="offline-status-retry" type="button" hidden>重试加载</button>
+            <button id="offline-status-close" type="button" aria-label="收起离线加载提示">×</button>
+        </div>
     </aside>
-    <div id="boot-status" role="status" style="position:fixed;inset:0;display:grid;place-content:center;padding:24px;font-family:sans-serif;z-index:1000;background:#F8FAFC">
-        <strong id="boot-title">正在获取启动程序……</strong>
-        <p id="boot-detail">正在准备应用资源。</p>
-        <button id="boot-retry" type="button" hidden style="min-height:44px">重新加载</button>
+    <div id="boot-status" role="status">
+        <div class="boot-card">
+            <img class="boot-logo" src="icon-192.png" alt="口算特训" width="64" height="64">
+            <div class="boot-app-name">口算特训</div>
+            <div class="boot-spinner" aria-hidden="true"></div>
+            <strong id="boot-title">正在获取启动程序……</strong>
+            <p id="boot-detail">正在准备应用资源。</p>
+            <button id="boot-retry" type="button" hidden>重新加载</button>
+        </div>
     </div>
     <script src="startup.js"></script>
     <script defer src="offline-speech.js"></script>

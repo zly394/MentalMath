@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 
 actual object PlatformStorage {
     private var prefs: SharedPreferences? = null
+    private val memoryStore = mutableMapOf<String, String>()
 
     fun init(context: Context) {
         if (prefs == null) {
@@ -17,9 +18,18 @@ actual object PlatformStorage {
 
     actual fun currentTimeMillis(): Long = System.currentTimeMillis()
 
-    actual fun getString(key: String): String? = prefs?.getString(key, null)
+    actual fun getString(key: String): String? = prefs?.getString(key, null) ?: memoryStore[key]
 
     actual fun putString(key: String, value: String) {
-        prefs?.edit()?.putString(key, value)?.apply()
+        val p = prefs
+        if (p != null) {
+            p.edit().putString(key, value).apply()
+        } else {
+            memoryStore[key] = value
+        }
+    }
+
+    fun clearForTesting() {
+        memoryStore.clear()
     }
 }

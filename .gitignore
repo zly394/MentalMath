@@ -43,3 +43,12 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+
+
+# Local SSL Certificates
+/certs/
+*.pem
+*.key
+*.cer
+*.crt
+*.pfx

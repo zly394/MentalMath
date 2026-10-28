@@ -2,9 +2,12 @@ package com.zly.mentalmath.data
 
 import com.zly.mentalmath.model.AnswerOutcome
 import com.zly.mentalmath.model.AttemptRecord
+import com.zly.mentalmath.model.InputMode
 import com.zly.mentalmath.model.PracticeConfig
+import com.zly.mentalmath.model.QuestionMode
 import com.zly.mentalmath.model.QuestionStat
 import com.zly.mentalmath.model.SessionRecord
+import com.zly.mentalmath.model.TimeLimitOption
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -184,5 +187,37 @@ class MathRepository {
             "${r.id}|${r.modeLabel}|${r.timeLimitLabel}|${r.totalCount}|${r.correctCount}|${r.wrongCount}|${r.timeoutCount}|${r.avgResponseMs}|${r.timestampMs}"
         }
         PlatformStorage.putString(KEY_SESSION_HISTORY, serialized)
+    }
+
+    /**
+     * 读取用户持久化保存的训练偏好配置（题型、限时、作答方式）
+     */
+    fun loadPracticeConfig(): PracticeConfig {
+        val raw = PlatformStorage.getString(KEY_CONFIG) ?: return PracticeConfig()
+        if (raw.isBlank()) return PracticeConfig()
+        val parts = raw.split("|")
+        val mode = parts.getOrNull(0)?.let { name ->
+            runCatching { QuestionMode.valueOf(name) }.getOrNull()
+        } ?: QuestionMode.MIXED
+        val timeLimit = parts.getOrNull(1)?.let { name ->
+            runCatching { TimeLimitOption.valueOf(name) }.getOrNull()
+        } ?: TimeLimitOption.NORMAL_2S
+        val inputMode = parts.getOrNull(2)?.let { name ->
+            runCatching { InputMode.valueOf(name) }.getOrNull()
+        } ?: PracticeConfig().inputMode
+
+        return PracticeConfig(
+            questionMode = mode,
+            timeLimit = timeLimit,
+            inputMode = inputMode
+        )
+    }
+
+    /**
+     * 保存用户选择的训练配置，用于下次冷启动恢复
+     */
+    fun savePracticeConfig(config: PracticeConfig) {
+        val serialized = "${config.questionMode.name}|${config.timeLimit.name}|${config.inputMode.name}"
+        PlatformStorage.putString(KEY_CONFIG, serialized)
     }
 }
