@@ -7,11 +7,10 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '..', 'composeApp', 'src',
   'wasmJsMain', 'resources', 'startup.js'), 'utf8');
 
-function environment(windowOverrides = {}, nowFn = () => 10) {
+function environment() {
   const handlers = {};
   const timers = [];
   let reloads = 0;
-  const bootCard = { style: {} };
   const elements = Object.fromEntries(['boot-status', 'boot-title', 'boot-detail', 'boot-retry']
     .map(id => [id, {
       hidden: true, textContent: '', attributes: {},
@@ -21,16 +20,11 @@ function environment(windowOverrides = {}, nowFn = () => 10) {
     }]));
   const window = {
     addEventListener: (name, callback) => { handlers[name] = callback; },
-    location: { reload() { reloads++; } },
-    ...windowOverrides
+    location: { reload() { reloads++; } }
   };
   const context = {
-    window,
-    document: {
-      getElementById: id => elements[id],
-      querySelector: sel => (sel === '.boot-card' ? bootCard : null)
-    },
-    performance: { now: nowFn },
+    window, document: { getElementById: id => elements[id] },
+    performance: { now: () => 10 },
     console: { info() {}, error() {} },
     setTimeout(callback, delay) {
       const timer = { callback, delay, cancelled: false };
@@ -44,7 +38,7 @@ function environment(windowOverrides = {}, nowFn = () => 10) {
   vm.createContext(context);
   Object.defineProperty(context, 'showStartupError', { get: () => window.showStartupError });
   vm.runInContext(source, context);
-  return { elements, bootCard, window, timers, handlers, reloads: () => reloads };
+  return { elements, window, timers, handlers, reloads: () => reloads };
 }
 
 test('startup stages are explicit and the ready callback removes the overlay', () => {
@@ -82,17 +76,5 @@ test('startup failures remain visible while late success can still remove the ov
   env.window.mentalMathStartup.ready();
   assert.equal(env.elements['boot-status'].removed, true);
   env.handlers.error({ message: 'unrelated error after startup' });
-  assert.equal(env.elements['boot-status'].removed, true);
-});
-
-test('standalone fast startup holds splash cover until window transition settles', () => {
-  let currentNow = 10;
-  const env = environment({ navigator: { standalone: true } }, () => currentNow);
-  currentNow = 410; // elapsed = 400ms (< 520ms)
-  env.window.mentalMathStartup.ready();
-  assert.equal(env.elements['boot-status'].removed, undefined);
-  assert.equal(env.bootCard.style.display, 'none');
-  assert.equal(env.timers[1].delay, 120);
-  env.timers[1].callback();
   assert.equal(env.elements['boot-status'].removed, true);
 });

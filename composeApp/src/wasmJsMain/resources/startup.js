@@ -39,17 +39,9 @@
     ready() {
       completed = true;
       clearTimeout(timer);
-      const elapsed = performance.now() - startedAt;
-      const minStandaloneSplashMs = 520;
-      if (window.navigator?.standalone && elapsed < minStandaloneSplashMs) {
-        const card = document.querySelector?.('.boot-card');
-        if (card?.style) card.style.display = 'none';
-        setTimeout(() => status.remove(), Math.ceil(minStandaloneSplashMs - elapsed));
-      } else {
-        status.remove();
-      }
+      status.remove();
       console.info('Application startup ready:',
-        Math.round(elapsed) + 'ms');
+        Math.round(performance.now() - startedAt) + 'ms');
     }
   };
   retry.addEventListener('click', () => window.location.reload());
