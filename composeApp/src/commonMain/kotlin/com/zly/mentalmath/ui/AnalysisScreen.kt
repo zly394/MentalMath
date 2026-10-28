@@ -247,10 +247,10 @@ private fun AnalysisSummaryBanner(statsMap: Map<String, QuestionStat>) {
     val avgSpeedMs = if (totalCorrectCount > 0L) totalCorrectTimeMs / totalCorrectCount else 0L
     val speedRating = when {
         avgSpeedMs == 0L -> "未测"
-        avgSpeedMs < 1000L -> "极速 ⚡"
-        avgSpeedMs < 1500L -> "优秀 ✨"
-        avgSpeedMs < 2000L -> "良好 👍"
-        else -> "待提升 🌱"
+        avgSpeedMs < 1000L -> "极速"
+        avgSpeedMs < 1500L -> "优秀"
+        avgSpeedMs < 2000L -> "良好"
+        else -> "待提升"
     }
     val masteredCount = remember(statsMap) {
         statsMap.values.count {
@@ -424,12 +424,21 @@ private fun WeaknessDiagnosisTab(
                     style = MaterialTheme.typography.bodyMedium
                 )
             } else {
-                Text(
-                    text = "🔍 核心薄弱点：${topWeak.category.title}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcons.Search(
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        text = "核心薄弱点：${topWeak.category.title}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "教学建议：${topWeak.category.advice}",
@@ -551,11 +560,20 @@ private fun MistakeBookTab(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "👏 当前错题本为空！",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcons.Check(
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF16A34A)
+                    )
+                    Text(
+                        text = "当前错题本为空，全部掌握！",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "答错或超时的题目会自动收录到这里，在『错题消灭』模式中连续秒对 2 次即可自动移出。",
@@ -679,10 +697,16 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
     if (selectedKey != null && currentQuestion != null) {
         val level = WeaknessAnalyzer.evaluateMastery(currentStat)
         val levelName = when (level) {
-            MasteryLevel.MASTERED -> "🟢 秒杀精通 (<1.2s)"
-            MasteryLevel.FAMILIAR -> "🟡 熟练掌握 (1.2~2s)"
-            MasteryLevel.WEAK -> "🔴 错题薄弱"
-            MasteryLevel.UNPRACTICED -> "⚪ 尚未作答"
+            MasteryLevel.MASTERED -> "秒杀精通 (<1.2s)"
+            MasteryLevel.FAMILIAR -> "熟练掌握 (1.2~2s)"
+            MasteryLevel.WEAK -> "错题薄弱"
+            MasteryLevel.UNPRACTICED -> "尚未作答"
+        }
+        val dotColor = when (level) {
+            MasteryLevel.MASTERED -> Color(0xFF10B981)
+            MasteryLevel.FAMILIAR -> Color(0xFFF59E0B)
+            MasteryLevel.WEAK -> Color(0xFFEF4444)
+            MasteryLevel.UNPRACTICED -> Color(0xFF94A3B8)
         }
         val cardBg = when (level) {
             MasteryLevel.MASTERED -> Color(0xFFE8F5E9)
@@ -708,11 +732,17 @@ private fun MasteryHeatmapTab(statsMap: Map<String, QuestionStat>) {
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
-                    Text(
-                        text = "$levelName · 累计答 ${currentStat?.totalAttempts ?: 0}次 · 均速 ${currentStat?.avgResponseMs ?: 0}ms",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        AppIcons.StatusDot(color = dotColor, size = 6.dp)
+                        Text(
+                            text = "$levelName · 累计答 ${currentStat?.totalAttempts ?: 0}次 · 均速 ${currentStat?.avgResponseMs ?: 0}ms",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 if (currentStat?.isInMistakeBook == true) {
                     Surface(

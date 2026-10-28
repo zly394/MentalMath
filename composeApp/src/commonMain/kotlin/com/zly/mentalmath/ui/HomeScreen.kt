@@ -622,17 +622,39 @@ private fun ConfigCardsGroup(
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = if (selected) "✓ ${mode.label}" else mode.label,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
+                    val titleColor = if (selected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (mode == InputMode.VOICE) {
+                                AppIcons.Mic(modifier = Modifier.size(15.dp), tint = titleColor)
+                            } else {
+                                AppIcons.Keyboard(modifier = Modifier.size(15.dp), tint = titleColor)
+                            }
+                            Text(
+                                text = mode.label,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                color = titleColor
+                            )
                         }
-                    )
+                        AppIcons.RadioCheck(
+                            selected = selected,
+                            modifier = Modifier.size(16.dp),
+                            selectedColor = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = mode.desc,

@@ -2,6 +2,7 @@ package com.zly.mentalmath.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -469,6 +470,158 @@ object AppIcons {
                 color = tint,
                 style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
             )
+        }
+    }
+
+    /**
+     * ✓ 纯原生矢量对勾图标（替代 Unicode 字符 ✓）
+     */
+    @Composable
+    fun Check(
+        modifier: Modifier = Modifier.size(16.dp),
+        tint: Color = LocalContentColor.current
+    ) {
+        Canvas(modifier = modifier) {
+            val w = size.width
+            val h = size.height
+            val checkPath = Path().apply {
+                moveTo(w * 0.16f, h * 0.50f)
+                lineTo(w * 0.40f, h * 0.76f)
+                lineTo(w * 0.84f, h * 0.22f)
+            }
+            drawPath(
+                path = checkPath,
+                color = tint,
+                style = Stroke(
+                    width = 2.dp.toPx(),
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
+            )
+        }
+    }
+
+    /**
+     * ✗ 纯原生矢量叉号图标（替代 Unicode 字符 ✗）
+     */
+    @Composable
+    fun Cross(
+        modifier: Modifier = Modifier.size(16.dp),
+        tint: Color = LocalContentColor.current
+    ) {
+        Canvas(modifier = modifier) {
+            val w = size.width
+            val h = size.height
+            drawLine(
+                color = tint,
+                start = Offset(w * 0.22f, h * 0.22f),
+                end = Offset(w * 0.78f, h * 0.78f),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = tint,
+                start = Offset(w * 0.78f, h * 0.22f),
+                end = Offset(w * 0.22f, h * 0.78f),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        }
+    }
+
+    /**
+     * ⏰ 纯原生矢量时钟图标（替代 Emoji ⏰/⏱）
+     */
+    @Composable
+    fun Clock(
+        modifier: Modifier = Modifier.size(16.dp),
+        tint: Color = LocalContentColor.current
+    ) {
+        Canvas(modifier = modifier) {
+            val w = size.width
+            val h = size.height
+            // 表盘
+            drawCircle(
+                color = tint,
+                radius = w * 0.42f,
+                center = Offset(w * 0.5f, h * 0.5f),
+                style = Stroke(width = 1.8.dp.toPx())
+            )
+            // 指针
+            drawLine(
+                color = tint,
+                start = Offset(w * 0.5f, h * 0.5f),
+                end = Offset(w * 0.5f, h * 0.24f),
+                strokeWidth = 1.8.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = tint,
+                start = Offset(w * 0.5f, h * 0.5f),
+                end = Offset(w * 0.70f, h * 0.5f),
+                strokeWidth = 1.8.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        }
+    }
+
+    /**
+     * 🔍 纯原生矢量搜索/诊断放大镜图标（替代 Emoji 🔍）
+     */
+    @Composable
+    fun Search(
+        modifier: Modifier = Modifier.size(16.dp),
+        tint: Color = LocalContentColor.current
+    ) {
+        Canvas(modifier = modifier) {
+            val w = size.width
+            val h = size.height
+            // 镜片圈
+            drawCircle(
+                color = tint,
+                radius = w * 0.28f,
+                center = Offset(w * 0.40f, h * 0.40f),
+                style = Stroke(width = 1.8.dp.toPx())
+            )
+            // 手柄
+            drawLine(
+                color = tint,
+                start = Offset(w * 0.60f, h * 0.60f),
+                end = Offset(w * 0.84f, h * 0.84f),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        }
+    }
+
+    /**
+     * 选中状态的原生圆形对勾单选指示器（Radio Check Circle）
+     * 彻底解决字符串对号字符未加载异常与文字跳动问题
+     */
+    @Composable
+    fun RadioCheck(
+        selected: Boolean,
+        modifier: Modifier = Modifier.size(18.dp),
+        selectedColor: Color = MaterialTheme.colorScheme.primary,
+        unselectedColor: Color = MaterialTheme.colorScheme.outlineVariant
+    ) {
+        Box(
+            modifier = modifier
+                .clip(CircleShape)
+                .background(if (selected) selectedColor else Color.Transparent)
+                .border(
+                    width = if (selected) 0.dp else 1.5.dp,
+                    color = if (selected) Color.Transparent else unselectedColor,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selected) {
+                Check(
+                    modifier = Modifier.size(11.dp),
+                    tint = Color.White
+                )
+            }
         }
     }
 

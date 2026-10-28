@@ -456,23 +456,29 @@ private fun QuestionBlackboardCard(
 
             if (isFeedback) {
                 val feedbackText = when (lastAttempt.outcome) {
-                    AnswerOutcome.CORRECT -> {
-                        "✓ 回答正确！反应耗时 ${lastAttempt.elapsedMs} ms"
-                    }
-                    AnswerOutcome.WRONG -> {
-                        "✗ 刚才答了 ${lastAttempt.userAnswer}，正确答案是 ${question.answer}（已记入错题本）"
-                    }
-                    AnswerOutcome.TIMEOUT -> {
-                        "⏰ 超过 ${state.config.timeLimit.label}未答，正确答案是 ${question.answer}（已记入错题本）"
-                    }
+                    AnswerOutcome.CORRECT -> "回答正确！反应耗时 ${lastAttempt.elapsedMs}ms"
+                    AnswerOutcome.WRONG -> "刚才答了 ${lastAttempt.userAnswer}，正确是 ${question.answer}（已记入错题本）"
+                    AnswerOutcome.TIMEOUT -> "超过 ${state.config.timeLimit.label}未答，正确是 ${question.answer}（已记入错题本）"
                 }
-                Text(
-                    text = feedbackText,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = answerBoxBorderColor,
-                    textAlign = TextAlign.Center
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    when (lastAttempt.outcome) {
+                        AnswerOutcome.CORRECT -> AppIcons.Check(modifier = Modifier.size(15.dp), tint = answerBoxBorderColor)
+                        AnswerOutcome.WRONG -> AppIcons.Cross(modifier = Modifier.size(15.dp), tint = answerBoxBorderColor)
+                        AnswerOutcome.TIMEOUT -> AppIcons.Clock(modifier = Modifier.size(15.dp), tint = answerBoxBorderColor)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = feedbackText,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = answerBoxBorderColor,
+                        textAlign = TextAlign.Center
+                    )
+                }
             } else {
                 Text(
                     text = state.voiceHint,
@@ -682,12 +688,21 @@ private fun SessionSummaryView(
                 .padding(horizontal = horizontalPadding, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "🎉 本轮挑战完成！",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                AppIcons.Trophy(
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "本轮挑战完成！",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -977,9 +992,9 @@ private fun VoiceEyesFreeBlackboardCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     when {
-                        isFeedback && lastAttempt.outcome == AnswerOutcome.CORRECT -> Text("✓", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
-                        isFeedback && lastAttempt.outcome == AnswerOutcome.WRONG -> Text("✗", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
-                        isFeedback && lastAttempt.outcome == AnswerOutcome.TIMEOUT -> AppIcons.Bolt(modifier = Modifier.size(15.dp), tint = textColor)
+                        isFeedback && lastAttempt.outcome == AnswerOutcome.CORRECT -> AppIcons.Check(modifier = Modifier.size(15.dp), tint = textColor)
+                        isFeedback && lastAttempt.outcome == AnswerOutcome.WRONG -> AppIcons.Cross(modifier = Modifier.size(15.dp), tint = textColor)
+                        isFeedback && lastAttempt.outcome == AnswerOutcome.TIMEOUT -> AppIcons.Clock(modifier = Modifier.size(15.dp), tint = textColor)
                         state.phase == QuestionPhase.SPEAKING -> AppIcons.Speaker(modifier = Modifier.size(15.dp), tint = textColor)
                         state.phase == QuestionPhase.SPEECH_DETECTED -> AppIcons.Bolt(modifier = Modifier.size(15.dp), tint = textColor)
                         else -> AppIcons.Mic(modifier = Modifier.size(15.dp), tint = textColor)
