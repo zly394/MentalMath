@@ -277,11 +277,8 @@ class PracticeViewModel(
             currentCombo == 3 -> "3连对！"
             else -> ""
         }
-        val spokenText = if (milestonePrefix.isNotEmpty()) {
-            "$milestonePrefix ${nextQ.spokenQuestion}"
-        } else {
-            nextQ.spokenQuestion
-        }
+        // 语音播报必须使用纯净算式（100% 命中离线语音包 132 道题）；连对激励在界面印章与提示语中呈现
+        val spokenText = nextQ.spokenQuestion
 
         _uiState.update {
             it.copy(

@@ -307,7 +307,11 @@ class MentalMathBrowserSpeech {
       }
     }
     const pack = MentalMathBrowserSpeech.pack;
-    const slice = pack && pack.phrases.get(text);
+    let slice = pack && pack.phrases.get(text);
+    if (!slice && pack) {
+      const match = text.match(/[零一二三四五六七八九十]+[加减][零一二三四五六七八九十]+/);
+      if (match) slice = pack.phrases.get(match[0]);
+    }
     if (slice) {
       try {
         const audio = context.createBuffer(1, slice.length / 2, 16000);

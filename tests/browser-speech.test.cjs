@@ -316,6 +316,18 @@ test('the production voice pack contains all 132 questions and plays PCM', async
   assert.equal(completed, 1);
 });
 
+test('questions with milestone prefix extract math expression and play PCM without timeout', async () => {
+  const env = environment();
+  await env.ready;
+  let completed = 0;
+  await env.engine.speak('3连对！ 三加五', () => completed++, assert.fail);
+  assert.equal(env.sources.length, 1, 'must play PCM from pack rather than falling back to speech synthesis');
+  assert.equal(env.utterances.length, 0);
+  env.audioContext().currentTime = env.sources[0].buffer.duration;
+  await env.sources[0].onended();
+  assert.equal(completed, 1);
+});
+
 test('the first question resumes audio synchronously and waits for its voice pack', async () => {
   let finishDownload;
   const packGate = new Promise(resolve => { finishDownload = resolve; });

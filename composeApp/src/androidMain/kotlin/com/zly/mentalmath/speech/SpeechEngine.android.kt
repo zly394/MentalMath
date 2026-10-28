@@ -261,7 +261,11 @@ actual class SpeechEngine actual constructor() {
                 }
 
                 val blob = phrasePcmBlob
-                val slice = phraseIndex[text]
+                var slice = phraseIndex[text]
+                if (slice == null) {
+                    val mathKey = Regex("""[零一二三四五六七八九十]+[加减][零一二三四五六七八九十]+""").find(text)?.value
+                    if (mathKey != null) slice = phraseIndex[mathKey]
+                }
                 if (blob == null || slice == null || slice.length <= 0 || !isSpeakingActive.get() || speakTokenGen.get() != mySpeakToken) {
                     finishSpeak(mySpeakToken, onDone)
                     return@Thread
