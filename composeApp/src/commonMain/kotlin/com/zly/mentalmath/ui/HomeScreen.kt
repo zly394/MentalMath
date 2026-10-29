@@ -269,6 +269,7 @@ private fun MistakeQuickCards(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -278,27 +279,26 @@ private fun MistakeQuickCards(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        softWrap = false,
                         color = Color(0xFF9A3412)
                     )
                 }
                 if (mistakes.isNotEmpty()) {
                     Text(
                         text = "消灭全部 →",
+                        style = MaterialTheme.typography.labelMedium,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        softWrap = false,
                         color = Color(0xFFEA580C),
                         modifier = Modifier.clickable { onStartMistakeReview() }
                     )
                 } else {
                     Text(
                         text = "0 道待消灭",
+                        style = MaterialTheme.typography.labelMedium,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        softWrap = false,
                         color = Color(0xFF9A3412).copy(alpha = 0.65f)
                     )
                 }
@@ -411,6 +411,7 @@ private fun OverviewDashboardCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -420,16 +421,15 @@ private fun OverviewDashboardCard(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        softWrap = false,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
                 Text(
                     text = "已掌握 $masteredCount/132 题 ($percent%)",
+                    style = MaterialTheme.typography.labelMedium,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    softWrap = false,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -477,48 +477,50 @@ private fun OverviewDashboardCard(
             // 掌握度细分标签
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
                 ) {
                     AppIcons.StatusDot(color = Color(0xFF10B981), size = 7.dp)
                     Text(
-                        text = "已掌握 $masteredCount",
+                        text = "已掌握 $masteredCount",
+                        style = MaterialTheme.typography.labelSmall,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
-                        softWrap = false,
                         color = Color(0xFF047857)
                     )
                 }
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
                 ) {
                     AppIcons.StatusDot(color = Color(0xFFF59E0B), size = 7.dp)
                     Text(
-                        text = "磨合中 $pendingCount",
+                        text = "磨合中 $pendingCount",
+                        style = MaterialTheme.typography.labelSmall,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
-                        softWrap = false,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
                 ) {
                     AppIcons.StatusDot(color = Color(0xFFEF4444), size = 7.dp)
                     Text(
-                        text = "待攻克 $mistakeCount",
+                        text = "待攻克 $mistakeCount",
+                        style = MaterialTheme.typography.labelSmall,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        softWrap = false,
                         color = if (mistakeCount > 0) Color(0xFFB45309) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }

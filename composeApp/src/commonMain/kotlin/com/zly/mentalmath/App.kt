@@ -11,6 +11,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -100,78 +101,80 @@ fun App(customFontFamily: FontFamily? = null) {
         if (customFontFamily != null) baseTypography.withFontFamily(customFontFamily) else baseTypography
     }
 
-    MaterialTheme(typography = appTypography) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                when (currentRoute) {
-                    AppRoute.HOME -> {
-                        HomeScreen(
-                            config = uiState.config,
-                            statsMap = statsMap,
-                            sessions = sessions,
-                            onSelectQuestionMode = viewModel::updateQuestionMode,
-                            onSelectTimeLimit = viewModel::updateTimeLimit,
-                            onSelectInputMode = viewModel::updateInputMode,
-                            onStartPractice = {
-                                SpeechLifecycle.prepareFromGesture?.invoke()
-                                practiceLaunch = PracticeLaunch(overrideMode = null)
-                                currentRoute = AppRoute.PRACTICE
-                            },
-                            onStartMistakeReview = {
-                                SpeechLifecycle.prepareFromGesture?.invoke()
-                                practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
-                                currentRoute = AppRoute.PRACTICE
-                            },
-                            onOpenAnalysis = {
-                                currentRoute = AppRoute.ANALYSIS
-                            }
-                        )
-                    }
+    key(customFontFamily != null) {
+        MaterialTheme(typography = appTypography) {
+            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    when (currentRoute) {
+                        AppRoute.HOME -> {
+                            HomeScreen(
+                                config = uiState.config,
+                                statsMap = statsMap,
+                                sessions = sessions,
+                                onSelectQuestionMode = viewModel::updateQuestionMode,
+                                onSelectTimeLimit = viewModel::updateTimeLimit,
+                                onSelectInputMode = viewModel::updateInputMode,
+                                onStartPractice = {
+                                    SpeechLifecycle.prepareFromGesture?.invoke()
+                                    practiceLaunch = PracticeLaunch(overrideMode = null)
+                                    currentRoute = AppRoute.PRACTICE
+                                },
+                                onStartMistakeReview = {
+                                    SpeechLifecycle.prepareFromGesture?.invoke()
+                                    practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
+                                    currentRoute = AppRoute.PRACTICE
+                                },
+                                onOpenAnalysis = {
+                                    currentRoute = AppRoute.ANALYSIS
+                                }
+                            )
+                        }
 
-                    AppRoute.PRACTICE -> {
-                        PracticeScreen(
-                            state = uiState,
-                            isStarting = practiceLaunch != null,
-                            onToggleInputMode = viewModel::updateInputMode,
-                            onKeypadSubmit = viewModel::submitKeypadAnswer,
-                            onRestartSession = {
-                                SpeechLifecycle.prepareFromGesture?.invoke()
-                                viewModel.startSession()
-                            },
-                            onResumeSession = {
-                                SpeechLifecycle.prepareFromGesture?.invoke()
-                                viewModel.resumeSession()
-                            },
-                            onOpenAnalysis = {
-                                viewModel.stopSession()
-                                currentRoute = AppRoute.ANALYSIS
-                            },
-                            onExit = {
-                                if (practiceLaunch == null) viewModel.stopSession()
-                                practiceLaunch = null
-                                currentRoute = AppRoute.HOME
-                            }
-                        )
-                    }
+                        AppRoute.PRACTICE -> {
+                            PracticeScreen(
+                                state = uiState,
+                                isStarting = practiceLaunch != null,
+                                onToggleInputMode = viewModel::updateInputMode,
+                                onKeypadSubmit = viewModel::submitKeypadAnswer,
+                                onRestartSession = {
+                                    SpeechLifecycle.prepareFromGesture?.invoke()
+                                    viewModel.startSession()
+                                },
+                                onResumeSession = {
+                                    SpeechLifecycle.prepareFromGesture?.invoke()
+                                    viewModel.resumeSession()
+                                },
+                                onOpenAnalysis = {
+                                    viewModel.stopSession()
+                                    currentRoute = AppRoute.ANALYSIS
+                                },
+                                onExit = {
+                                    if (practiceLaunch == null) viewModel.stopSession()
+                                    practiceLaunch = null
+                                    currentRoute = AppRoute.HOME
+                                }
+                            )
+                        }
 
-                    AppRoute.ANALYSIS -> {
-                        AnalysisScreen(
-                            statsMap = statsMap,
-                            sessions = sessions,
-                            onStartMistakePractice = {
-                                SpeechLifecycle.prepareFromGesture?.invoke()
-                                practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
-                                currentRoute = AppRoute.PRACTICE
-                            },
-                            onRemoveMistake = repository::removeFromMistakeBook,
-                            onBack = {
-                                currentRoute = AppRoute.HOME
-                            }
-                        )
+                        AppRoute.ANALYSIS -> {
+                            AnalysisScreen(
+                                statsMap = statsMap,
+                                sessions = sessions,
+                                onStartMistakePractice = {
+                                    SpeechLifecycle.prepareFromGesture?.invoke()
+                                    practiceLaunch = PracticeLaunch(QuestionMode.MISTAKE_REVIEW)
+                                    currentRoute = AppRoute.PRACTICE
+                                },
+                                onRemoveMistake = repository::removeFromMistakeBook,
+                                onBack = {
+                                    currentRoute = AppRoute.HOME
+                                }
+                            )
+                        }
                     }
                 }
             }
