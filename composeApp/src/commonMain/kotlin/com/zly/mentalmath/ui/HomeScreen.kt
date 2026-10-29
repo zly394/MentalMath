@@ -62,7 +62,8 @@ fun HomeScreen(
     onStartMistakeReview: () -> Unit,
     onOpenAnalysis: () -> Unit
 ) {
-    val mistakeCount = statsMap.values.count { it.isInMistakeBook }
+    val mistakes = remember(statsMap) { statsMap.values.filter { it.isInMistakeBook } }
+    val mistakeCount = mistakes.size
     val totalAnswered = statsMap.values.sumOf { it.totalAttempts }
     val totalCorrect = statsMap.values.sumOf { it.correctCount }
     val overallAccuracy = if (totalAnswered == 0) {
@@ -73,93 +74,132 @@ fun HomeScreen(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isPad = maxWidth >= 600.dp
+        val isLandscapePad = maxWidth >= 840.dp && maxWidth > maxHeight
 
-        if (isPad) {
-            // Pad / 平板横竖屏双栏自适应布局（居中定宽，高度均衡对称）
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 上方内容区（靠上对齐，小视口可滚动）
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 contentAlignment = Alignment.TopCenter
             ) {
-                Row(
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .widthIn(max = 1140.dp)
-                        .padding(horizontal = 28.dp, vertical = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                        .fillMaxWidth()
+                        .then(
+                            when {
+                                isLandscapePad -> Modifier.widthIn(max = 1140.dp)
+                                isPad -> Modifier.widthIn(max = 680.dp)
+                                else -> Modifier
+                            }
+                        )
+                        .padding(
+                            horizontal = if (isPad) 28.dp else 16.dp,
+                            vertical = if (isPad) 20.dp else 12.dp
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(
+                        when {
+                            isLandscapePad -> 18.dp
+                            isPad -> 16.dp
+                            else -> 12.dp
+                        }
+                    )
                 ) {
-                    // 左栏：品牌中枢 + 仪表盘 + 重点错题快速通道 + 近期战绩/口诀秘籍
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        BrandHeader()
+                    BrandHeader()
+
+                    if (isLandscapePad) {
+                        // 平板横屏：1. 掌握度+错题(1×2) → 2. 题型+限时+方式(1×3)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Max),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp)
+                        ) {
+                            OverviewDashboardCard(
+                                statsMap = statsMap,
+                                totalAnswered = totalAnswered,
+                                overallAccuracy = overallAccuracy,
+                                mistakeCount = mistakeCount,
+                                onOpenAnalysis = onOpenAnalysis,
+                                onStartMistakeReview = onStartMistakeReview,
+                                isPad = true,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                            MistakeQuickCards(
+                                mistakes = mistakes,
+                                onStartMistakeReview = onStartMistakeReview,
+                                isPad = true,
+                                fillHeight = true,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                        }
+
+                        LandscapeConfigRow(
+                            config = config,
+                            onSelectQuestionMode = onSelectQuestionMode,
+                            onSelectTimeLimit = onSelectTimeLimit,
+                            onSelectInputMode = onSelectInputMode
+                        )
+                    } else {
+                        // 平板竖屏 & 手机端：单列上下结构
                         OverviewDashboardCard(
                             statsMap = statsMap,
                             totalAnswered = totalAnswered,
                             overallAccuracy = overallAccuracy,
                             mistakeCount = mistakeCount,
                             onOpenAnalysis = onOpenAnalysis,
-                            onStartMistakeReview = onStartMistakeReview
+                            onStartMistakeReview = onStartMistakeReview,
+                            isPad = isPad
                         )
-                        MistakeQuickCards(
-                            mistakes = statsMap.values.filter { it.isInMistakeBook },
-                            onStartMistakeReview = onStartMistakeReview
-                        )
-                    }
-
-                    // 右栏：三大训练参数配置 + 开始挑战大按钮
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
+                        if (isPad) {
+                            MistakeQuickCards(
+                                mistakes = mistakes,
+                                onStartMistakeReview = onStartMistakeReview,
+                                isPad = true,
+                                fillHeight = false
+                            )
+                        }
                         ConfigCardsGroup(
                             config = config,
                             onSelectQuestionMode = onSelectQuestionMode,
                             onSelectTimeLimit = onSelectTimeLimit,
-                            onSelectInputMode = onSelectInputMode
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        StartChallengeButton(
-                            config = config,
-                            onClick = onStartPractice
+                            onSelectInputMode = onSelectInputMode,
+                            isPad = isPad
                         )
                     }
                 }
             }
-        } else {
-            // 手机端：上方紧凑可滚动配置区 + 底部固定“开始挑战”操作栏（免滚动一触即达）
-            Column(modifier = Modifier.fillMaxSize()) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    BrandHeader()
-                    OverviewDashboardCard(
-                        statsMap = statsMap,
-                        totalAnswered = totalAnswered,
-                        overallAccuracy = overallAccuracy,
-                        mistakeCount = mistakeCount,
-                        onOpenAnalysis = onOpenAnalysis,
-                        onStartMistakeReview = onStartMistakeReview
-                    )
-                    ConfigCardsGroup(
-                        config = config,
-                        onSelectQuestionMode = onSelectQuestionMode,
-                        onSelectTimeLimit = onSelectTimeLimit,
-                        onSelectInputMode = onSelectInputMode
-                    )
-                }
 
-                // 底部固定主操作栏
+            // 底部主挑战操作区（平板居中靠下，手机固定底栏）
+            if (isPad) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .widthIn(max = if (isLandscapePad) 420.dp else 624.dp)
+                            .fillMaxWidth()
+                    ) {
+                        StartChallengeButton(
+                            config = config,
+                            onClick = onStartPractice,
+                            isPad = true
+                        )
+                    }
+                }
+            } else {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     tonalElevation = 4.dp,
@@ -172,7 +212,8 @@ fun HomeScreen(
                     ) {
                         StartChallengeButton(
                             config = config,
-                            onClick = onStartPractice
+                            onClick = onStartPractice,
+                            isPad = false
                         )
                     }
                 }
@@ -202,17 +243,26 @@ private fun BrandHeader() {
 @Composable
 private fun MistakeQuickCards(
     mistakes: List<QuestionStat>,
-    onStartMistakeReview: () -> Unit
+    onStartMistakeReview: () -> Unit,
+    isPad: Boolean = false,
+    fillHeight: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
+    val cardPadding = if (isPad) 18.dp else 14.dp
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFFFFF7ED)
         ),
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFEDD5))
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier
+                .then(if (fillHeight) Modifier.fillMaxSize() else Modifier)
+                .padding(cardPadding),
+            verticalArrangement = if (fillHeight) Arrangement.SpaceBetween else Arrangement.Top
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -238,26 +288,58 @@ private fun MistakeQuickCards(
                         color = Color(0xFFEA580C),
                         modifier = Modifier.clickable { onStartMistakeReview() }
                     )
+                } else {
+                    Text(
+                        text = "0 道待消灭",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF9A3412).copy(alpha = 0.65f)
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
             if (mistakes.isEmpty()) {
-                Text(
-                    text = "太棒了！当前没有待消灭的错题，继续保持极速答题！",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF9A3412).copy(alpha = 0.8f)
-                )
+                if (fillHeight) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.65f))
+                            .border(1.dp, Color(0xFFFFEDD5), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "太棒了！当前没有待消灭的错题，继续保持极速答题！",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF9A3412).copy(alpha = 0.85f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "太棒了！当前没有待消灭的错题，继续保持极速答题！",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF9A3412).copy(alpha = 0.8f)
+                    )
+                }
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (fillHeight) Modifier.weight(1f) else Modifier),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     mistakes.take(3).forEach { stat ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
+                                .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Color.White)
                                 .border(1.dp, Color(0xFFFDBA74), RoundedCornerShape(10.dp))
@@ -293,7 +375,9 @@ private fun OverviewDashboardCard(
     overallAccuracy: Int,
     mistakeCount: Int,
     onOpenAnalysis: () -> Unit,
-    onStartMistakeReview: () -> Unit
+    onStartMistakeReview: () -> Unit,
+    isPad: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     val totalCount = 132
     val masteredCount = remember(statsMap) {
@@ -304,15 +388,16 @@ private fun OverviewDashboardCard(
     }
     val pendingCount = (totalCount - masteredCount - mistakeCount).coerceAtLeast(0)
     val percent = ((masteredCount.toFloat() / totalCount) * 100).toInt()
+    val cardPadding = if (isPad) 18.dp else 14.dp
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             // 上半部：132题全库掌握度微型进度区
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -505,10 +590,15 @@ private fun ConfigCardsGroup(
     config: PracticeConfig,
     onSelectQuestionMode: (QuestionMode) -> Unit,
     onSelectTimeLimit: (TimeLimitOption) -> Unit,
-    onSelectInputMode: (InputMode) -> Unit
+    onSelectInputMode: (InputMode) -> Unit,
+    isPad: Boolean = false
 ) {
+    val modeBtnHeight = if (isPad) 48.dp else 40.dp
+    val modeFontSize = if (isPad) 14.sp else 13.sp
+    val itemVerticalPadding = if (isPad) 14.dp else 10.dp
+
     // 1. 题型范围选择
-    SectionCard(title = "1. 题型范围") {
+    SectionCard(title = "1. 题型范围", isPad = isPad) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -528,7 +618,7 @@ private fun ConfigCardsGroup(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(40.dp)
+                        .height(modeBtnHeight)
                         .clip(RoundedCornerShape(10.dp))
                         .background(bgColor)
                         .clickable { onSelectQuestionMode(mode) },
@@ -536,7 +626,7 @@ private fun ConfigCardsGroup(
                 ) {
                     Text(
                         text = mode.label,
-                        fontSize = 13.sp,
+                        fontSize = modeFontSize,
                         maxLines = 1,
                         fontWeight = FontWeight.Bold,
                         color = textColor
@@ -547,7 +637,7 @@ private fun ConfigCardsGroup(
     }
 
     // 2. 单题限时三档可调
-    SectionCard(title = "2. 单题作答限时（超时判错）") {
+    SectionCard(title = "2. 单题作答限时（超时判错）", isPad = isPad) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -570,7 +660,7 @@ private fun ConfigCardsGroup(
                         .clip(RoundedCornerShape(12.dp))
                         .background(bgColor)
                         .clickable { onSelectTimeLimit(option) }
-                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                        .padding(vertical = itemVerticalPadding, horizontal = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -592,7 +682,7 @@ private fun ConfigCardsGroup(
     }
 
     // 3. 作答交互方式（等高双卡片对齐）
-    SectionCard(title = "3. 作答方式（训练中也可随时切换）") {
+    SectionCard(title = "3. 作答方式（训练中也可随时切换）", isPad = isPad) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -619,7 +709,7 @@ private fun ConfigCardsGroup(
                         .background(bgColor)
                         .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
                         .clickable { onSelectInputMode(mode) }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = itemVerticalPadding),
                     verticalArrangement = Arrangement.Center
                 ) {
                     val titleColor = if (selected) {
@@ -672,19 +762,21 @@ private fun ConfigCardsGroup(
 @Composable
 private fun StartChallengeButton(
     config: PracticeConfig,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isPad: Boolean = false
 ) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp),
-        shape = RoundedCornerShape(16.dp)
+            .height(if (isPad) 60.dp else 54.dp),
+        shape = RoundedCornerShape(if (isPad) 18.dp else 16.dp)
     ) {
         Text(
             text = "开始挑战（${config.totalQuestions} 题 · ${config.timeLimit.label}限时）",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.ExtraBold
+            fontSize = if (isPad) 18.sp else 17.sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1
         )
     }
 }
@@ -722,26 +814,229 @@ private fun StatSummaryItem(
 }
 
 @Composable
+private fun LandscapeConfigRow(
+    config: PracticeConfig,
+    onSelectQuestionMode: (QuestionMode) -> Unit,
+    onSelectTimeLimit: (TimeLimitOption) -> Unit,
+    onSelectInputMode: (InputMode) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Max),
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // 1. 题型范围（2×2 网格，高 110dp）
+        SectionCard(
+            title = "1. 题型范围",
+            isPad = true,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                QuestionMode.entries.chunked(2).forEach { rowModes ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        rowModes.forEach { mode ->
+                            val selected = config.questionMode == mode
+                            val bgColor = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            }
+                            val textColor = if (selected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(bgColor)
+                                    .clickable { onSelectQuestionMode(mode) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = mode.label,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textColor
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. 单题作答限时（1×3 并排，等高 110dp）
+        SectionCard(
+            title = "2. 单题作答限时（超时判错）",
+            isPad = true,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                TimeLimitOption.entries.forEach { option ->
+                    val selected = config.timeLimit == option
+                    val bgColor = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    }
+                    val textColor = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(bgColor)
+                            .clickable { onSelectTimeLimit(option) }
+                            .padding(horizontal = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = option.label,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = textColor,
+                            maxLines = 1
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = option.tag,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor.copy(alpha = 0.85f),
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. 作答方式（上下 2 行叠放，等高 110dp）
+        SectionCard(
+            title = "3. 作答方式（训练中也可切换）",
+            isPad = true,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                InputMode.entries.forEach { mode ->
+                    val selected = config.inputMode == mode
+                    val bgColor = if (selected) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    }
+                    val borderColor = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        Color.Transparent
+                    }
+                    val titleColor = if (selected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(bgColor)
+                            .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
+                            .clickable { onSelectInputMode(mode) }
+                            .padding(horizontal = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (mode == InputMode.VOICE) {
+                                AppIcons.Mic(modifier = Modifier.size(16.dp), tint = titleColor)
+                            } else {
+                                AppIcons.Keyboard(modifier = Modifier.size(16.dp), tint = titleColor)
+                            }
+                            Text(
+                                text = mode.label,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                color = titleColor
+                            )
+                            Text(
+                                text = "· ${mode.desc}",
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        AppIcons.RadioCheck(
+                            selected = selected,
+                            modifier = Modifier.size(16.dp),
+                            selectedColor = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SectionCard(
     title: String,
+    isPad: Boolean = false,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val cardPadding = if (isPad) 18.dp else 14.dp
+    val titleBottomGap = if (isPad) 10.dp else 8.dp
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(titleBottomGap))
             content()
         }
     }

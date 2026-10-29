@@ -20,7 +20,8 @@ import com.zly.mentalmath.ui.PracticeUiState
 import com.zly.mentalmath.ui.QuestionPhase
 
 @Preview(name = "HomeScreen - Phone", showBackground = true, widthDp = 390, heightDp = 844)
-@Preview(name = "HomeScreen - Pad", showBackground = true, widthDp = 800, heightDp = 1000)
+@Preview(name = "HomeScreen - Pad Portrait", showBackground = true, widthDp = 800, heightDp = 1000)
+@Preview(name = "HomeScreen - Pad Landscape", showBackground = true, widthDp = 1024, heightDp = 736)
 @Composable
 fun HomeScreenPreview() {
     MaterialTheme {

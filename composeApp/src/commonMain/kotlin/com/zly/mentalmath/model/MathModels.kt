@@ -72,8 +72,8 @@ enum class TimeLimitOption(val millis: Long, val label: String, val tag: String)
  * 作答交互模式（支持随时切换）
  */
 enum class InputMode(val label: String, val desc: String) {
-    VOICE("语音抢答", "听题直接喊答案，开口停表"),
-    KEYPAD("听音按键", "听题秒按屏幕 0~10 数字键")
+    VOICE("语音抢答", "开口即停表"),
+    KEYPAD("听音按键", "点按数字键")
 }
 
 /**
