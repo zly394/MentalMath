@@ -277,6 +277,8 @@ private fun MistakeQuickCards(
                         text = "重点错题快速攻克",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         color = Color(0xFF9A3412)
                     )
                 }
@@ -285,6 +287,8 @@ private fun MistakeQuickCards(
                         text = "消灭全部 →",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         color = Color(0xFFEA580C),
                         modifier = Modifier.clickable { onStartMistakeReview() }
                     )
@@ -293,6 +297,8 @@ private fun MistakeQuickCards(
                         text = "0 道待消灭",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         color = Color(0xFF9A3412).copy(alpha = 0.65f)
                     )
                 }
@@ -413,6 +419,8 @@ private fun OverviewDashboardCard(
                         text = "132题全库掌握度",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -420,6 +428,8 @@ private fun OverviewDashboardCard(
                     text = "已掌握 $masteredCount/132 题 ($percent%)",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -476,9 +486,11 @@ private fun OverviewDashboardCard(
                 ) {
                     AppIcons.StatusDot(color = Color(0xFF10B981), size = 7.dp)
                     Text(
-                        text = "已掌握 $masteredCount",
+                        text = "已掌握 $masteredCount",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false,
                         color = Color(0xFF047857)
                     )
                 }
@@ -488,9 +500,11 @@ private fun OverviewDashboardCard(
                 ) {
                     AppIcons.StatusDot(color = Color(0xFFF59E0B), size = 7.dp)
                     Text(
-                        text = "磨合中 $pendingCount",
+                        text = "磨合中 $pendingCount",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }
@@ -500,9 +514,11 @@ private fun OverviewDashboardCard(
                 ) {
                     AppIcons.StatusDot(color = Color(0xFFEF4444), size = 7.dp)
                     Text(
-                        text = "待攻克 $mistakeCount",
+                        text = "待攻克 $mistakeCount",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         color = if (mistakeCount > 0) Color(0xFFB45309) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }
