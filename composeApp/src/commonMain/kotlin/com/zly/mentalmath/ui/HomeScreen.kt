@@ -348,20 +348,26 @@ private fun OverviewDashboardCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 底部学情分析入口
-            OutlinedButton(
-                onClick = onOpenAnalysis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp),
-                shape = RoundedCornerShape(12.dp)
+            // 底部学情分析入口（横屏居中定宽 420.dp，与下方「开始挑战」严格对齐）
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "错题本 & 薄弱分析",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
-                )
+                OutlinedButton(
+                    onClick = onOpenAnalysis,
+                    modifier = Modifier
+                        .then(if (isLandscape) Modifier.widthIn(max = 420.dp) else Modifier)
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "错题本 & 薄弱分析",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
