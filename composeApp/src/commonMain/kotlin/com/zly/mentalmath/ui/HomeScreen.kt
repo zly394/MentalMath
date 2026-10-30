@@ -66,6 +66,8 @@ fun HomeScreen(
     val mistakeCount = mistakes.size
     val totalAnswered = statsMap.values.sumOf { it.totalAttempts }
     val totalCorrect = statsMap.values.sumOf { it.correctCount }
+    val totalCorrectTimeMs = statsMap.values.sumOf { it.totalCorrectTimeMs }
+    val avgSpeedMs = if (totalCorrect > 0) totalCorrectTimeMs / totalCorrect else 0L
     val overallAccuracy = if (totalAnswered == 0) {
         0
     } else {
@@ -104,7 +106,7 @@ fun HomeScreen(
                         ),
                     verticalArrangement = Arrangement.spacedBy(
                         when {
-                            isLandscapePad -> 18.dp
+                            isLandscapePad -> 20.dp
                             isPad -> 16.dp
                             else -> 12.dp
                         }
@@ -112,37 +114,19 @@ fun HomeScreen(
                 ) {
                     BrandHeader()
 
-                    if (isLandscapePad) {
-                        // 平板横屏：1. 掌握度+错题(1×2) → 2. 题型+限时+方式(1×3)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Max),
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            OverviewDashboardCard(
-                                statsMap = statsMap,
-                                totalAnswered = totalAnswered,
-                                overallAccuracy = overallAccuracy,
-                                mistakeCount = mistakeCount,
-                                onOpenAnalysis = onOpenAnalysis,
-                                onStartMistakeReview = onStartMistakeReview,
-                                isPad = true,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-                            MistakeQuickCards(
-                                mistakes = mistakes,
-                                onStartMistakeReview = onStartMistakeReview,
-                                isPad = true,
-                                fillHeight = true,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-                        }
+                    OverviewDashboardCard(
+                        statsMap = statsMap,
+                        mistakes = mistakes,
+                        totalAnswered = totalAnswered,
+                        overallAccuracy = overallAccuracy,
+                        avgSpeedMs = avgSpeedMs,
+                        onOpenAnalysis = onOpenAnalysis,
+                        onStartMistakeReview = onStartMistakeReview,
+                        isPad = isPad,
+                        isLandscape = isLandscapePad
+                    )
 
+                    if (isLandscapePad) {
                         LandscapeConfigRow(
                             config = config,
                             onSelectQuestionMode = onSelectQuestionMode,
@@ -150,24 +134,6 @@ fun HomeScreen(
                             onSelectInputMode = onSelectInputMode
                         )
                     } else {
-                        // 平板竖屏 & 手机端：单列上下结构
-                        OverviewDashboardCard(
-                            statsMap = statsMap,
-                            totalAnswered = totalAnswered,
-                            overallAccuracy = overallAccuracy,
-                            mistakeCount = mistakeCount,
-                            onOpenAnalysis = onOpenAnalysis,
-                            onStartMistakeReview = onStartMistakeReview,
-                            isPad = isPad
-                        )
-                        if (isPad) {
-                            MistakeQuickCards(
-                                mistakes = mistakes,
-                                onStartMistakeReview = onStartMistakeReview,
-                                isPad = true,
-                                fillHeight = false
-                            )
-                        }
                         ConfigCardsGroup(
                             config = config,
                             onSelectQuestionMode = onSelectQuestionMode,
@@ -241,151 +207,20 @@ private fun BrandHeader() {
 }
 
 @Composable
-private fun MistakeQuickCards(
-    mistakes: List<QuestionStat>,
-    onStartMistakeReview: () -> Unit,
-    isPad: Boolean = false,
-    fillHeight: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    val cardPadding = if (isPad) 18.dp else 14.dp
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFFFF7ED)
-        ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFEDD5))
-    ) {
-        Column(
-            modifier = Modifier
-                .then(if (fillHeight) Modifier.fillMaxSize() else Modifier)
-                .padding(cardPadding),
-            verticalArrangement = if (fillHeight) Arrangement.SpaceBetween else Arrangement.Top
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    AppIcons.Target(modifier = Modifier.size(15.dp), tint = Color(0xFFEA580C))
-                    Text(
-                        text = "重点错题快速攻克",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = Color(0xFF9A3412)
-                    )
-                }
-                if (mistakes.isNotEmpty()) {
-                    Text(
-                        text = "消灭全部 →",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = Color(0xFFEA580C),
-                        modifier = Modifier.clickable { onStartMistakeReview() }
-                    )
-                } else {
-                    Text(
-                        text = "0 道待消灭",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = Color(0xFF9A3412).copy(alpha = 0.65f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            if (mistakes.isEmpty()) {
-                if (fillHeight) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.65f))
-                            .border(1.dp, Color(0xFFFFEDD5), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "太棒了！当前没有待消灭的错题，继续保持极速答题！",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF9A3412).copy(alpha = 0.85f),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "太棒了！当前没有待消灭的错题，继续保持极速答题！",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF9A3412).copy(alpha = 0.8f)
-                    )
-                }
-            } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (fillHeight) Modifier.weight(1f) else Modifier),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    mistakes.take(3).forEach { stat ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFFDBA74), RoundedCornerShape(10.dp))
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "${stat.key} = ?",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFFC2410C)
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "需连对${stat.mistakeStreakToClear}次",
-                                    fontSize = 10.sp,
-                                    color = Color(0xFF9A3412).copy(alpha = 0.75f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun OverviewDashboardCard(
     statsMap: Map<String, QuestionStat>,
+    mistakes: List<QuestionStat>,
     totalAnswered: Int,
     overallAccuracy: Int,
-    mistakeCount: Int,
+    avgSpeedMs: Long,
     onOpenAnalysis: () -> Unit,
     onStartMistakeReview: () -> Unit,
     isPad: Boolean = false,
+    isLandscape: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val totalCount = 132
+    val mistakeCount = mistakes.size
     val masteredCount = remember(statsMap) {
         statsMap.values.count {
             val level = WeaknessAnalyzer.evaluateMastery(it)
@@ -394,7 +229,13 @@ private fun OverviewDashboardCard(
     }
     val pendingCount = (totalCount - masteredCount - mistakeCount).coerceAtLeast(0)
     val percent = ((masteredCount.toFloat() / totalCount) * 100).toInt()
-    val cardPadding = if (isPad) 18.dp else 14.dp
+    val avgSpeedValue = if (avgSpeedMs == 0L) {
+        "--"
+    } else {
+        val tenths = (avgSpeedMs + 50L) / 100L
+        "${tenths / 10}.${tenths % 10}秒"
+    }
+    val cardPadding = if (isPad) 20.dp else 14.dp
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -404,202 +245,318 @@ private fun OverviewDashboardCard(
         )
     ) {
         Column(modifier = Modifier.padding(cardPadding)) {
-            // 上半部：132题全库掌握度微型进度区
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            if (isLandscape) {
+                // 横屏双栏总览：左侧 132 题掌握度进度条，右侧核心战绩黄金三角
                 Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AppIcons.Chart(modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                    Text(
-                        text = "132题全库掌握度",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    Column(
+                        modifier = Modifier.weight(1.1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        MasteryProgressSection(
+                            masteredCount = masteredCount,
+                            pendingCount = pendingCount,
+                            mistakeCount = mistakeCount,
+                            totalCount = totalCount,
+                            percent = percent
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
                     )
+
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        StatSummaryItem(
+                            modifier = Modifier.weight(1f),
+                            label = "累计作答",
+                            value = "${totalAnswered}题"
+                        )
+                        StatSummaryItem(
+                            modifier = Modifier.weight(1f),
+                            label = "综合正确率",
+                            value = "$overallAccuracy%"
+                        )
+                        StatSummaryItem(
+                            modifier = Modifier.weight(1f),
+                            label = "平均耗时",
+                            value = avgSpeedValue
+                        )
+                    }
                 }
-                Text(
-                    text = "已掌握 $masteredCount/132 题 ($percent%)",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.primary
+            } else {
+                // 竖屏 / 手机端：上下紧凑结构
+                MasteryProgressSection(
+                    masteredCount = masteredCount,
+                    pendingCount = pendingCount,
+                    mistakeCount = mistakeCount,
+                    totalCount = totalCount,
+                    percent = percent
                 )
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
+                )
+                Spacer(modifier = Modifier.height(10.dp))
 
-            // 三色掌握度分段进度条
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(7.dp)
-                    .clip(RoundedCornerShape(9999.dp))
-                    .background(Color(0xFFE2E8F0))
-            ) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    if (masteredCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .weight((masteredCount.toFloat() / totalCount).coerceAtLeast(0.01f))
-                                .fillMaxHeight()
-                                .background(Color(0xFF10B981))
-                        )
-                    }
-                    if (mistakeCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .weight((mistakeCount.toFloat() / totalCount).coerceAtLeast(0.01f))
-                                .fillMaxHeight()
-                                .background(Color(0xFFF97316))
-                        )
-                    }
-                    if (pendingCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .weight((pendingCount.toFloat() / totalCount).coerceAtLeast(0.01f))
-                                .fillMaxHeight()
-                                .background(Color(0xFFE2E8F0))
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 掌握度细分标签
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
                 Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AppIcons.StatusDot(color = Color(0xFF10B981), size = 7.dp)
-                    Text(
-                        text = "已掌握 $masteredCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        color = Color(0xFF047857)
+                    StatSummaryItem(
+                        modifier = Modifier.weight(1f),
+                        label = "累计作答",
+                        value = "${totalAnswered}题"
                     )
-                }
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
-                ) {
-                    AppIcons.StatusDot(color = Color(0xFFF59E0B), size = 7.dp)
-                    Text(
-                        text = "磨合中 $pendingCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    StatSummaryItem(
+                        modifier = Modifier.weight(1f),
+                        label = "综合正确率",
+                        value = "$overallAccuracy%"
                     )
-                }
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
-                ) {
-                    AppIcons.StatusDot(color = Color(0xFFEF4444), size = 7.dp)
-                    Text(
-                        text = "待攻克 $mistakeCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = if (mistakeCount > 0) Color(0xFFB45309) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    StatSummaryItem(
+                        modifier = Modifier.weight(1f),
+                        label = "平均耗时",
+                        value = avgSpeedValue
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 下半部：三项作答战绩
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                StatSummaryItem(
-                    modifier = Modifier.weight(1f),
-                    label = "累计作答",
-                    value = "${totalAnswered}题"
-                )
-                StatSummaryItem(
-                    modifier = Modifier.weight(1f),
-                    label = "综合正确率",
-                    value = "$overallAccuracy%"
-                )
-                StatSummaryItem(
-                    modifier = Modifier.weight(1f),
-                    label = "错题待消灭",
-                    value = "${mistakeCount}道",
-                    highlight = mistakeCount > 0
+            // 按需内嵌的重点错题胶囊条（仅当存在错题时展示，0 错题时零冗余）
+            if (mistakes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                InlineMistakeStrip(
+                    mistakes = mistakes,
+                    onStartMistakeReview = onStartMistakeReview,
+                    isPad = isPad
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 操作按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // 底部学情分析入口
+            OutlinedButton(
+                onClick = onOpenAnalysis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                OutlinedButton(
-                    onClick = onOpenAnalysis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(42.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "错题本 & 薄弱分析",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
-                    )
-                }
-                if (mistakeCount > 0) {
-                    Button(
-                        onClick = onStartMistakeReview,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFE65100)
-                        )
-                    ) {
-                        Text(
-                            text = "消灭错题 ($mistakeCount)",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-                }
+                Text(
+                    text = "错题本 & 薄弱分析",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun MasteryProgressSection(
+    masteredCount: Int,
+    pendingCount: Int,
+    mistakeCount: Int,
+    totalCount: Int,
+    percent: Int
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            AppIcons.Chart(modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+            Text(
+                text = "132题全库掌握度",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+        Text(
+            text = "已掌握 $masteredCount/132 题 ($percent%)",
+            style = MaterialTheme.typography.labelMedium,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // 三色掌握度分段进度条
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(7.dp)
+            .clip(RoundedCornerShape(9999.dp))
+            .background(Color(0xFFE2E8F0))
+    ) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (masteredCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .weight((masteredCount.toFloat() / totalCount).coerceAtLeast(0.01f))
+                        .fillMaxHeight()
+                        .background(Color(0xFF10B981))
+                )
+            }
+            if (mistakeCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .weight((mistakeCount.toFloat() / totalCount).coerceAtLeast(0.01f))
+                        .fillMaxHeight()
+                        .background(Color(0xFFF97316))
+                )
+            }
+            if (pendingCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .weight((pendingCount.toFloat() / totalCount).coerceAtLeast(0.01f))
+                        .fillMaxHeight()
+                        .background(Color(0xFFE2E8F0))
+                )
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(6.dp))
+
+    // 掌握度细分标签
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
+        ) {
+            AppIcons.StatusDot(color = Color(0xFF10B981), size = 7.dp)
+            Text(
+                text = "已掌握 $masteredCount",
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                color = Color(0xFF047857)
+            )
+        }
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
+        ) {
+            AppIcons.StatusDot(color = Color(0xFFF59E0B), size = 7.dp)
+            Text(
+                text = "磨合中 $pendingCount",
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            )
+        }
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
+        ) {
+            AppIcons.StatusDot(color = Color(0xFFEF4444), size = 7.dp)
+            Text(
+                text = "待攻克 $mistakeCount",
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                color = if (mistakeCount > 0) Color(0xFFB45309) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun InlineMistakeStrip(
+    mistakes: List<QuestionStat>,
+    onStartMistakeReview: () -> Unit,
+    isPad: Boolean
+) {
+    val maxDisplay = if (isPad) 4 else 3
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFFFF7ED))
+            .border(1.dp, Color(0xFFFED7AA), RoundedCornerShape(12.dp))
+            .clickable { onStartMistakeReview() }
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            AppIcons.Target(modifier = Modifier.size(14.dp), tint = Color(0xFFEA580C))
+            mistakes.take(maxDisplay).forEach { stat ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFFDBA74), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "${stat.key}=?",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        color = Color(0xFFC2410C)
+                    )
+                }
+            }
+            if (mistakes.size > maxDisplay) {
+                Text(
+                    text = "+${mistakes.size - maxDisplay}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF9A3412)
+                )
+            }
+        }
+        Text(
+            text = "消灭错题 (${mistakes.size}) →",
+            style = MaterialTheme.typography.labelMedium,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            color = Color(0xFFEA580C)
+        )
     }
 }
 
